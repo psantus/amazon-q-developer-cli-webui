@@ -4,4 +4,11 @@ node_modules
 .DS_Store
 
 uploads
+.env
+certs/
+dist/
+terraform/*.tfvars
+terraform/terraform.tfstate*
+terraform/.terraform/
+terraform/terraform-outputs.json
 

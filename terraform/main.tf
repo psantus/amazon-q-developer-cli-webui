@@ -264,8 +264,8 @@ resource "aws_iot_policy" "server_policy" {
           "iot:Subscribe"
         ]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/${var.project_name}/server/+/input",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/${var.project_name}/server/+/control"
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/${var.project_name}/server/*/input",
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/${var.project_name}/server/*/control"
         ]
       },
       {
@@ -274,8 +274,8 @@ resource "aws_iot_policy" "server_policy" {
           "iot:Publish"
         ]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/client/+/output",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/client/+/status"
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/client/*/output",
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/client/*/status"
         ]
       },
       {
@@ -284,8 +284,8 @@ resource "aws_iot_policy" "server_policy" {
           "iot:Receive"
         ]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/server/+/input",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/server/+/control"
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/server/*/input",
+          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/${var.project_name}/server/*/control"
         ]
       }
     ]
