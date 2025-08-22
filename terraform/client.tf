@@ -10,9 +10,11 @@ resource "null_resource" "build_client" {
 
   triggers = {
     # Rebuild when any of these files change
-    html_hash = filemd5("${path.module}/../public/index-mqtt.html")
-    js_hash   = filemd5("${path.module}/../public/script-mqtt.js")
-    css_hash  = filemd5("${path.module}/../public/style.css")
+    html_hash = filemd5("${path.module}/../client/src/index.html")
+    js_hash   = filemd5("${path.module}/../client/src/app.js")
+    main_js_hash = filemd5("${path.module}/../client/src/index.js")
+    css_hash  = filemd5("${path.module}/../client/src/style.css")
+    package_hash = filemd5("${path.module}/../client/package.json")
     config_hash = sha256(jsonencode({
       region                = var.aws_region
       userPoolId           = aws_cognito_user_pool.q_cli_pool.id
@@ -26,13 +28,18 @@ resource "null_resource" "build_client" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      cd ${path.module}/..
+      cd ${path.module}/../client
       
-      # Create dist directory
+      # Build the client using webpack
+      npm run build
+      
+      # Copy built files to dist directory for Terraform
       mkdir -p dist
+      cp dist/index.html dist/index.html
+      cp dist/bundle.js dist/bundle.js
+      cp dist/style.css dist/style.css
       
-      # Copy HTML files and inject configuration
-      cp public/index-mqtt.html dist/index.html
+      # Inject configuration into HTML
       sed -i '' "s/region: 'us-east-1'/region: '${var.aws_region}'/g" dist/index.html
       sed -i '' "s/userPoolId: 'us-east-1_XXXXXXXXX'/userPoolId: '${aws_cognito_user_pool.q_cli_pool.id}'/g" dist/index.html
       sed -i '' "s/userPoolWebClientId: 'XXXXXXXXXXXXXXXXXXXXXXXXXX'/userPoolWebClientId: '${aws_cognito_user_pool_client.q_cli_client.id}'/g" dist/index.html
@@ -43,13 +50,7 @@ resource "null_resource" "build_client" {
       
       echo "<!-- Error page -->" > dist/error.html
       
-      # Copy CSS
-      cp public/style.css dist/style.css
-      
-      # Copy JavaScript (no changes needed as config comes from HTML)
-      cp public/script-mqtt.js dist/script-mqtt.js
-      
-      echo "Client built successfully with configuration:"
+      echo "Client built successfully with webpack and configuration:"
       echo "  Region: ${var.aws_region}"
       echo "  User Pool: ${aws_cognito_user_pool.q_cli_pool.id}"
       echo "  Client ID: ${aws_cognito_user_pool_client.q_cli_client.id}"
@@ -64,7 +65,7 @@ resource "aws_s3_object" "client_html" {
   
   bucket       = aws_s3_bucket.client_ui.id
   key          = "index.html"
-  source       = "${path.module}/../dist/index.html"
+  source       = "${path.module}/../client/dist/index.html"
   content_type = "text/html"
   
   # Use build trigger to force update when build changes
@@ -76,7 +77,7 @@ resource "aws_s3_object" "client_error_html" {
   
   bucket       = aws_s3_bucket.client_ui.id
   key          = "error.html"
-  source       = "${path.module}/../dist/error.html"
+  source       = "${path.module}/../client/dist/error.html"
   content_type = "text/html"
   
   # Use build trigger to force update when build changes
@@ -88,7 +89,7 @@ resource "aws_s3_object" "client_css" {
   
   bucket       = aws_s3_bucket.client_ui.id
   key          = "style.css"
-  source       = "${path.module}/../dist/style.css"
+  source       = "${path.module}/../client/dist/style.css"
   content_type = "text/css"
   
   # Use build trigger to force update when build changes
@@ -99,8 +100,8 @@ resource "aws_s3_object" "client_js" {
   depends_on = [null_resource.build_client]
   
   bucket       = aws_s3_bucket.client_ui.id
-  key          = "script-mqtt.js"
-  source       = "${path.module}/../dist/script-mqtt.js"
+  key          = "bundle.js"
+  source       = "${path.module}/../client/dist/bundle.js"
   content_type = "application/javascript"
   
   # Use build trigger to force update when build changes

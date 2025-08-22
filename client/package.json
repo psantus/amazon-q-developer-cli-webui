@@ -1,0 +1,42 @@
+{
+  "name": "q-cli-webui-client",
+  "version": "0.1.0",
+  "description": "Web client for Amazon Q CLI WebUI with MQTT over WebSocket",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "serve": "python3 -m http.server 8080 --directory dist",
+    "serve-dev": "python3 -m http.server 3000 --directory dist"
+  },
+  "dependencies": {
+    "amazon-cognito-identity-js": "^6.3.12",
+    "aws-iot-device-sdk": "^2.2.15",
+    "aws-iot-device-sdk-v2": "^1.23.0",
+    "aws-sdk": "^2.1563.0"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "copy-webpack-plugin": "^11.0.0",
+    "crypto-browserify": "^3.12.1",
+    "fs-extra": "^11.3.1",
+    "html-webpack-plugin": "^5.5.0",
+    "path-browserify": "^1.0.1",
+    "process": "^0.11.10",
+    "stream-browserify": "^3.0.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0"
+  },
+  "keywords": [
+    "amazon-q",
+    "cli",
+    "webui",
+    "client",
+    "mqtt",
+    "websocket"
+  ],
+  "author": "Gabriel Koo",
+  "license": "MIT"
+}
