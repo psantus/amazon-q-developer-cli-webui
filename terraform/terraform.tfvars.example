@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and fill in your values
+
+aws_region = "us-east-1"
+project_name = "q-cli-webui"
+cognito_username = "qcli-user"
+cognito_user_email = "your-email@example.com"
+
+# Optional: Custom domain configuration
+# domain_name = "qcli.yourdomain.com"
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"

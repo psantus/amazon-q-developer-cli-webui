@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Q Developer CLI WebUI (MQTT)</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1563.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Amazon Q Developer CLI WebUI (MQTT)</h1>
+            <div class="status-bar">
+                <span id="status" class="status disconnected">Disconnected</span>
+                <div class="controls">
+                    <button id="loginBtn" class="btn primary">Login</button>
+                    <button id="startBtn" class="btn primary" disabled>Start Q Chat</button>
+                    <button id="stopBtn" class="btn secondary" disabled>Stop Q Chat</button>
+                    <button id="clearBtn" class="btn secondary">Clear Terminal</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Login Modal -->
+        <div id="loginModal" class="modal">
+            <div class="modal-content">
+                <h2>Login to Q CLI WebUI</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="username">Username:</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary">Login</button>
+                        <button type="button" id="cancelLogin" class="btn secondary">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <main>
+            <div id="terminal" class="terminal"></div>
+            
+            <div id="inputSection" class="input-section" style="display: none;">
+                <div id="promptIndicator" class="prompt-indicator"></div>
+                <textarea id="userInput" class="user-input" placeholder="Type your response here..." rows="3"></textarea>
+                <div class="input-controls">
+                    <button id="sendBtn" class="btn primary" disabled>Send</button>
+                    <button id="clearInputBtn" class="btn secondary">Clear Input</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Configuration Script -->
+    <script>
+        // AWS and MQTT Configuration
+        window.AWS_CONFIG = {
+            region: 'us-east-1', // Will be replaced by build script
+            userPoolId: 'us-east-1_XXXXXXXXX', // Will be replaced by build script
+            userPoolWebClientId: 'XXXXXXXXXXXXXXXXXXXXXXXXXX', // Will be replaced by build script
+            identityPoolId: 'us-east-1:XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX', // Will be replaced by build script
+            iotEndpoint: 'XXXXXXXXXXXXXX-ats.iot.us-east-1.amazonaws.com', // Will be replaced by build script
+            iotPolicyName: 'q-cli-webui-cognito-iot-policy', // Will be replaced by build script
+            projectName: 'q-cli-webui' // Will be replaced by build script
+        };
+    </script>
+    <script src="script-mqtt.js"></script>
+</body>
+</html>
