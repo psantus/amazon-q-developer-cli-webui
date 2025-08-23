@@ -177,26 +177,31 @@ class QCliMqttServer {
             const session = {
                 process: qProcess,
                 clientId,
-                startTime: new Date()
+                startTime: new Date(),
+                outputBuffer: '',
+                bufferTimer: null,
+                bufferLines: [],
+                maxLines: 10,        // Send after N lines
+                maxWaitMs: 500       // Or after M milliseconds
             };
 
             this.sessions.set(clientId, session);
 
-            // Handle stdout
+            // Handle stdout with buffering
             qProcess.stdout.on('data', (data) => {
-                const output = data.toString();
-                this.publishToClient(clientId, 'output', { raw: output });
+                this.bufferOutput(clientId, data.toString());
             });
 
-            // Handle stderr
+            // Handle stderr with buffering
             qProcess.stderr.on('data', (data) => {
-                const output = data.toString();
-                this.publishToClient(clientId, 'output', { raw: output });
+                this.bufferOutput(clientId, data.toString());
             });
 
             // Handle process exit
             qProcess.on('exit', (code, signal) => {
                 console.log(`🔚 Q chat process exited for ${clientId}`);
+                // Flush any remaining buffer
+                this.flushBuffer(clientId);
                 this.sessions.delete(clientId);
                 this.publishToClient(clientId, 'status', {
                     type: 'exit',
@@ -208,6 +213,7 @@ class QCliMqttServer {
             // Handle process error
             qProcess.on('error', (error) => {
                 console.error(`❌ Q chat process error for ${clientId}:`, error);
+                this.flushBuffer(clientId);
                 this.sessions.delete(clientId);
                 this.publishToClient(clientId, 'status', {
                     type: 'error',
@@ -225,6 +231,118 @@ class QCliMqttServer {
                 message: 'Failed to start Q chat: ' + error.message
             });
         }
+    }
+
+    bufferOutput(clientId, data) {
+        const session = this.sessions.get(clientId);
+        if (!session) return;
+
+        // Add to buffer
+        session.outputBuffer += data;
+
+        // Process complete lines
+        const lines = session.outputBuffer.split('\n');
+        
+        // Keep the last incomplete line in buffer
+        session.outputBuffer = lines.pop() || '';
+
+        // Process complete lines
+        for (const line of lines) {
+            if (line.trim().length > 0) {
+                this.processBufferLine(clientId, line, session);
+            }
+        }
+
+        // Check if we should flush the buffer
+        if (session.bufferLines.length >= session.maxLines) {
+            this.flushBuffer(clientId);
+        } else if (session.bufferLines.length > 0 && !session.bufferTimer) {
+            // Start timer for partial buffer
+            session.bufferTimer = setTimeout(() => {
+                this.flushBuffer(clientId);
+            }, session.maxWaitMs);
+        }
+    }
+
+    processBufferLine(clientId, line, session) {
+        const cleanLine = this.cleanTerminalLine(line);
+        
+        // Skip empty lines
+        if (cleanLine.trim().length === 0) {
+            return;
+        }
+
+        // Skip spinner lines entirely - don't show them at all
+        if (this.isSpinnerLine(cleanLine)) {
+            console.log(`🚫 Filtered out spinner: ${cleanLine.substring(0, 30)}...`);
+            return;
+        }
+
+        // Add line to buffer
+        session.bufferLines.push(cleanLine);
+    }
+
+    isSpinnerLine(line) {
+        // Remove ANSI codes first, then check for spinner patterns
+        const cleanedLine = line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trim();
+        
+        // Detect spinner lines with various patterns
+        const spinnerPatterns = [
+            /^[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏]\s+(Thinking|Loading|Initializing|Connecting)/i,
+            /^[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏]\s*$/,  // Just spinner char alone
+            /^[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏].*[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏]/,  // Multiple spinner chars in one line
+            /Thinking\.\.\./i,  // Any line with "Thinking..."
+            /^[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏].*Thinking/i  // Spinner char followed by Thinking
+        ];
+        
+        const isSpinner = spinnerPatterns.some(pattern => pattern.test(cleanedLine));
+        
+        if (isSpinner) {
+            console.log(`🚫 Filtered spinner (raw): "${line.substring(0, 50)}..."`);
+            console.log(`🚫 Filtered spinner (clean): "${cleanedLine.substring(0, 50)}..."`);
+        }
+        
+        return isSpinner;
+    }
+
+    flushBuffer(clientId) {
+        const session = this.sessions.get(clientId);
+        if (!session || session.bufferLines.length === 0) return;
+
+        // Clear timer
+        if (session.bufferTimer) {
+            clearTimeout(session.bufferTimer);
+            session.bufferTimer = null;
+        }
+
+        // Clean and join lines
+        const cleanedLines = session.bufferLines.map(line => this.cleanTerminalLine(line));
+        const content = cleanedLines.join('\n');
+
+        // Send multiline content
+        this.publishToClient(clientId, 'output', {
+            content: content,
+            lineCount: session.bufferLines.length,
+            isMultiline: true
+        });
+
+        console.log(`📦 Sent ${session.bufferLines.length} lines to client ${clientId}`);
+
+        // Clear buffer
+        session.bufferLines = [];
+    }
+
+    cleanTerminalLine(line) {
+        return line
+            // Remove ANSI escape sequences
+            .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+            // Remove carriage returns
+            .replace(/\r/g, '')
+            // Remove other control characters except newlines
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+            // Clean up whitespace
+            .replace(/\s+/g, ' ')
+            .trim();
     }
 
     stopQChatSession(clientId) {
