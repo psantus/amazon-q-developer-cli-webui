@@ -55,7 +55,7 @@ class QCliMqttClient {
         
         // Keyboard shortcuts
         this.inputTextarea?.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 this.sendInput();
             }
@@ -575,10 +575,8 @@ class QCliMqttClient {
             const messageType = topicParts[topicParts.length - 1]; // last part is message type
             
             if (messageType === 'output') {
-                // Handle Q CLI output
-                if (data.raw) {
-                    this.addToTerminal(data.raw, 'output');
-                }
+                // Handle structured output from server
+                this.handleStructuredOutput(data);
             } else if (messageType === 'status') {
                 // Handle status updates
                 this.handleStatusMessage(data);
@@ -586,6 +584,33 @@ class QCliMqttClient {
         } catch (error) {
             console.error('Error parsing server message:', error);
             this.addToTerminal('❌ Error parsing server message', 'error');
+        }
+    }
+
+    handleStructuredOutput(data) {
+        // Handle structured output - now multiline instead of line replacement
+        if (data.content !== undefined) {
+            if (data.isMultiline) {
+                // Handle multiline content
+                this.addMultilineToTerminal(data.content);
+                console.log(`📦 Received ${data.lineCount} lines in multiline message`);
+            } else {
+                // Single line (fallback)
+                this.addToTerminal(data.content, 'output');
+            }
+        } else if (data.raw) {
+            // Fallback to old raw format
+            this.addToTerminal(data.raw, 'output');
+        }
+    }
+
+    addMultilineToTerminal(content) {
+        // Split content into lines and add each as a separate terminal line
+        const lines = content.split('\n');
+        for (const line of lines) {
+            if (line.trim().length > 0) { // Skip empty lines
+                this.addToTerminal(line, 'output');
+            }
         }
     }
 
@@ -611,6 +636,7 @@ class QCliMqttClient {
 
     enableControls() {
         this.startBtn.disabled = false;
+        this.sendBtn.disabled = false; // Enable send button when MQTT is connected
         if (this.loginBtn) {
             this.loginBtn.style.display = 'none';
         }
@@ -683,10 +709,18 @@ class QCliMqttClient {
         if (this.inputTextarea) {
             this.inputTextarea.focus();
         }
+        // Enable send button when input is shown
+        if (this.sendBtn) {
+            this.sendBtn.disabled = false;
+        }
     }
 
     hideInputContainer() {
         this.inputContainer.style.display = 'none';
+        // Disable send button when input is hidden
+        if (this.sendBtn) {
+            this.sendBtn.disabled = true;
+        }
     }
 }
 

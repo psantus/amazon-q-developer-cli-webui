@@ -221,9 +221,7 @@ h1 {
 }
 
 .input-line {
-    display: flex;
-    align-items: flex-start;
-    gap: 5px;
+    display: block; /* Changed from flex to block for full width */
     margin-bottom: 10px;
 }
 
@@ -340,12 +338,12 @@ h1 {
     font-weight: bold;
     font-size: 14px;
     line-height: 1.4;
-    padding-top: 10px; /* Align with textarea padding */
-    flex-shrink: 0;
+    margin-bottom: 5px; /* Add space below prompt */
+    display: block; /* Make it a block element */
 }
 
 #userInput {
-    flex: 1;
+    width: 100%; /* Full width */
     background-color: #222;
     color: #ffffff;
     border: 1px solid #444;
@@ -359,6 +357,7 @@ h1 {
     line-height: 1.4;
     overflow-y: auto;
     transition: height 0.1s ease;
+    box-sizing: border-box; /* Include padding in width calculation */
 }
 
 #userInput:focus {
