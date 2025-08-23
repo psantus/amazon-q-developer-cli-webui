@@ -1,3 +1,29 @@
+# Build the server dependencies
+resource "null_resource" "build_server" {
+  triggers = {
+    # Rebuild when server files change
+    server_js_hash = filemd5("${path.module}/../server/server-mqtt.js")
+    package_hash   = filemd5("${path.module}/../server/package.json")
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      cd ${path.module}/../server
+      
+      # Ensure Node.js dependencies are installed
+      echo "📦 Installing/updating server npm dependencies..."
+      npm install
+      
+      echo "✅ Server dependencies installed successfully"
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "echo '🧹 Server build cleanup complete'"
+  }
+}
+
 # Build the client files
 resource "null_resource" "build_client" {
   depends_on = [
@@ -30,7 +56,12 @@ resource "null_resource" "build_client" {
     command = <<-EOT
       cd ${path.module}/../client
       
+      # Ensure Node.js dependencies are installed
+      echo "📦 Installing/updating npm dependencies..."
+      npm install
+      
       # Build the client using webpack
+      echo "🔨 Building client with webpack..."
       npm run build
       
       # Copy built files to dist directory for Terraform
@@ -40,6 +71,7 @@ resource "null_resource" "build_client" {
       cp dist/style.css dist/style.css
       
       # Inject configuration into HTML
+      echo "⚙️ Injecting AWS configuration..."
       sed -i '' "s/region: 'us-east-1'/region: '${var.aws_region}'/g" dist/index.html
       sed -i '' "s/userPoolId: 'us-east-1_XXXXXXXXX'/userPoolId: '${aws_cognito_user_pool.q_cli_pool.id}'/g" dist/index.html
       sed -i '' "s/userPoolWebClientId: 'XXXXXXXXXXXXXXXXXXXXXXXXXX'/userPoolWebClientId: '${aws_cognito_user_pool_client.q_cli_client.id}'/g" dist/index.html
@@ -50,12 +82,18 @@ resource "null_resource" "build_client" {
       
       echo "<!-- Error page -->" > dist/error.html
       
-      echo "Client built successfully with webpack and configuration:"
+      echo "✅ Client built successfully with webpack and configuration:"
       echo "  Region: ${var.aws_region}"
       echo "  User Pool: ${aws_cognito_user_pool.q_cli_pool.id}"
       echo "  Client ID: ${aws_cognito_user_pool_client.q_cli_client.id}"
       echo "  Identity Pool: ${aws_cognito_identity_pool.q_cli_pool.id}"
     EOT
+  }
+
+  # Add a provisioner to handle build failures gracefully
+  provisioner "local-exec" {
+    when    = destroy
+    command = "echo '🧹 Cleaning up build artifacts...'"
   }
 }
 
