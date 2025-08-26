@@ -18,6 +18,7 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         { from: './src/style.css', to: 'style.css' },
+        { from: './src/session-styles.css', to: 'session-styles.css' },
       ],
     }),
     new webpack.ProvidePlugin({

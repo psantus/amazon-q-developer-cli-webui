@@ -1,3 +1,6 @@
+/* Import session management styles */
+@import url('./session-styles.css');
+
 * {
     margin: 0;
     padding: 0;

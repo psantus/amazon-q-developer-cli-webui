@@ -1,9 +1,8 @@
 # Build the server dependencies
 resource "null_resource" "build_server" {
   triggers = {
-    # Rebuild when server files change
-    server_js_hash = filemd5("${path.module}/../server/server-mqtt.js")
-    package_hash   = filemd5("${path.module}/../server/package.json")
+    # Always rebuild
+    timestamp = timestamp()
   }
 
   provisioner "local-exec" {
@@ -35,21 +34,8 @@ resource "null_resource" "build_client" {
   ]
 
   triggers = {
-    # Rebuild when any of these files change
-    html_hash = filemd5("${path.module}/../client/src/index.html")
-    js_hash   = filemd5("${path.module}/../client/src/app.js")
-    main_js_hash = filemd5("${path.module}/../client/src/index.js")
-    css_hash  = filemd5("${path.module}/../client/src/style.css")
-    package_hash = filemd5("${path.module}/../client/package.json")
-    config_hash = sha256(jsonencode({
-      region                = var.aws_region
-      userPoolId           = aws_cognito_user_pool.q_cli_pool.id
-      userPoolWebClientId  = aws_cognito_user_pool_client.q_cli_client.id
-      identityPoolId       = aws_cognito_identity_pool.q_cli_pool.id
-      iotEndpoint          = data.aws_iot_endpoint.iot_endpoint.endpoint_address
-      iotPolicyName        = aws_iot_policy.cognito_iot_policy.name
-      projectName          = var.project_name
-    }))
+    # Always rebuild
+    timestamp = timestamp()
   }
 
   provisioner "local-exec" {
@@ -64,11 +50,11 @@ resource "null_resource" "build_client" {
       echo "🔨 Building client with webpack..."
       npm run build
       
-      # Copy built files to dist directory for Terraform
-      mkdir -p dist
-      cp dist/index.html dist/index.html
-      cp dist/bundle.js dist/bundle.js
-      cp dist/style.css dist/style.css
+      # Verify build output
+      if [ ! -f "dist/index.html" ] || [ ! -f "dist/bundle.js" ] || [ ! -f "dist/style.css" ]; then
+        echo "❌ Build failed - missing required files"
+        exit 1
+      fi
       
       # Inject configuration into HTML
       echo "⚙️ Injecting AWS configuration..."
@@ -82,92 +68,81 @@ resource "null_resource" "build_client" {
       
       echo "<!-- Error page -->" > dist/error.html
       
-      echo "✅ Client built successfully with webpack and configuration:"
+      echo "✅ Client built successfully with modular architecture:"
       echo "  Region: ${var.aws_region}"
       echo "  User Pool: ${aws_cognito_user_pool.q_cli_pool.id}"
       echo "  Client ID: ${aws_cognito_user_pool_client.q_cli_client.id}"
       echo "  Identity Pool: ${aws_cognito_identity_pool.q_cli_pool.id}"
+      echo "  Architecture: Modular (Auth, MQTT, UI, Sessions)"
     EOT
   }
 
-  # Add a provisioner to handle build failures gracefully
   provisioner "local-exec" {
     when    = destroy
     command = "echo '🧹 Cleaning up build artifacts...'"
   }
 }
 
-# Upload client files to S3
-resource "aws_s3_object" "client_html" {
-  depends_on = [null_resource.build_client]
-  
-  bucket       = aws_s3_bucket.client_ui.id
-  key          = "index.html"
-  source       = "${path.module}/../client/dist/index.html"
-  content_type = "text/html"
-  
-  # Use build trigger to force update when build changes
-  source_hash = null_resource.build_client.triggers.config_hash
+# Define client files to upload with their content types
+locals {
+  client_files = {
+    "index.html" = {
+      source       = "${path.module}/../client/dist/index.html"
+      content_type = "text/html"
+    }
+    "error.html" = {
+      source       = "${path.module}/../client/dist/error.html"
+      content_type = "text/html"
+    }
+    "bundle.js" = {
+      source       = "${path.module}/../client/dist/bundle.js"
+      content_type = "application/javascript"
+    }
+    "style.css" = {
+      source       = "${path.module}/../client/dist/style.css"
+      content_type = "text/css"
+    }
+    "session-styles.css" = {
+      source       = "${path.module}/../client/dist/session-styles.css"
+      content_type = "text/css"
+    }
+  }
 }
 
-resource "aws_s3_object" "client_error_html" {
+# Upload all client files to S3 using for_each
+resource "aws_s3_object" "client_files" {
   depends_on = [null_resource.build_client]
   
-  bucket       = aws_s3_bucket.client_ui.id
-  key          = "error.html"
-  source       = "${path.module}/../client/dist/error.html"
-  content_type = "text/html"
+  for_each = local.client_files
   
-  # Use build trigger to force update when build changes
-  source_hash = null_resource.build_client.triggers.config_hash
-}
+  bucket        = aws_s3_bucket.client_ui.id
+  key           = each.key
+  source        = each.value.source
+  content_type  = each.value.content_type
+  cache_control = "no-cache, no-store, must-revalidate"
 
-resource "aws_s3_object" "client_css" {
-  depends_on = [null_resource.build_client]
-  
-  bucket       = aws_s3_bucket.client_ui.id
-  key          = "style.css"
-  source       = "${path.module}/../client/dist/style.css"
-  content_type = "text/css"
-  
-  # Use build trigger to force update when build changes
-  source_hash = null_resource.build_client.triggers.css_hash
-}
-
-resource "aws_s3_object" "client_js" {
-  depends_on = [null_resource.build_client]
-  
-  bucket       = aws_s3_bucket.client_ui.id
-  key          = "bundle.js"
-  source       = "${path.module}/../client/dist/bundle.js"
-  content_type = "application/javascript"
-  
-  # Use build trigger to force update when build changes
-  source_hash = null_resource.build_client.triggers.js_hash
+  # Always update by using timestamp
+  source_hash = null_resource.build_client.triggers.timestamp
 }
 
 # Invalidate CloudFront cache when files change
 resource "null_resource" "client_invalidation" {
-  depends_on = [
-    aws_s3_object.client_html,
-    aws_s3_object.client_error_html,
-    aws_s3_object.client_css,
-    aws_s3_object.client_js
-  ]
+  depends_on = [aws_s3_object.client_files]
   
   triggers = {
-    html_hash = aws_s3_object.client_html.source_hash
-    css_hash  = aws_s3_object.client_css.source_hash
-    js_hash   = aws_s3_object.client_js.source_hash
+    # Always invalidate using timestamp
+    timestamp = null_resource.build_client.triggers.timestamp
   }
   
   provisioner "local-exec" {
     command = <<-EOT
+      echo "🔄 Invalidating CloudFront cache..."
       aws cloudfront create-invalidation \
         --distribution-id ${aws_cloudfront_distribution.client_ui.id} \
         --paths "/*" \
         --profile ${var.aws_profile} \
         --region ${var.aws_region}
+      echo "✅ CloudFront cache invalidated"
     EOT
   }
 }
