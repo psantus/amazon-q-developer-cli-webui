@@ -52,8 +52,6 @@ class App {
         this.uiManager.on('login', ({ username, password }) => this.handleLogin(username, password));
         this.uiManager.on('showLogin', () => this.uiManager.showLoginModal());
         this.uiManager.on('cancelLogin', () => this.handleCancelLogin());
-        this.uiManager.on('startSession', () => this.handleStartSession());
-        this.uiManager.on('stopSession', () => this.handleStopSession());
         this.uiManager.on('sendInput', () => this.handleSendInput());
         this.uiManager.on('clearInput', () => this.uiManager.clearUserInput());
         this.uiManager.on('clearTerminal', () => this.handleClearTerminal());
@@ -144,59 +142,6 @@ class App {
     }
 
     /**
-     * Handle start session
-     */
-    async handleStartSession() {
-        if (!this.sessionManager) {
-            this.uiManager.showError('Session manager not initialized');
-            return;
-        }
-
-        try {
-            // Create and start a new session
-            await this.sessionManager.createAndStartSession();
-            
-            this.uiManager.setControlsState({
-                startBtn: true, // Keep enabled for creating more sessions
-                stopBtn: true
-            });
-            
-        } catch (error) {
-            console.error('Failed to start session:', error);
-            this.uiManager.showError(`Failed to start session: ${error.message}`);
-        }
-    }
-
-    /**
-     * Handle stop session
-     */
-    async handleStopSession() {
-        if (!this.sessionManager) {
-            this.uiManager.showError('Session manager not initialized');
-            return;
-        }
-
-        const activeSession = this.sessionManager.getActiveSession();
-        if (!activeSession) {
-            this.uiManager.showError('No active session to stop');
-            return;
-        }
-
-        try {
-            await this.sessionManager.stopSession(activeSession.id);
-            
-            this.uiManager.setControlsState({
-                startBtn: true,
-                stopBtn: false
-            });
-            
-        } catch (error) {
-            console.error('Failed to stop session:', error);
-            this.uiManager.showError(`Failed to stop session: ${error.message}`);
-        }
-    }
-
-    /**
      * Handle send input
      */
     async handleSendInput() {
@@ -238,11 +183,6 @@ class App {
      * Enable controls after successful connection
      */
     enableControls() {
-        this.uiManager.setControlsState({
-            startBtn: true,
-            sendBtn: false // Will be enabled when session starts
-        });
-
         this.uiManager.setElementsVisibility({
             loginBtn: false
         });
@@ -252,11 +192,7 @@ class App {
      * Disable controls on disconnection
      */
     disableControls() {
-        this.uiManager.setControlsState({
-            startBtn: false,
-            stopBtn: false,
-            sendBtn: false
-        });
+        // No controls to disable since we removed start/stop buttons
     }
 
     /**

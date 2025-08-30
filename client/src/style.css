@@ -640,3 +640,58 @@ button:disabled {
     padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
 }
+/* New Session Modal */
+.modal {
+    display: flex;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+}
+
+.modal .modal-content {
+    background-color: #2d3748;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    width: 90%;
+    max-width: 400px;
+    color: #e2e8f0;
+}
+
+.modal .modal-content h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #f7fafc;
+}
+
+.modal .form-group {
+    margin-bottom: 1rem;
+}
+
+.modal .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.modal .form-group input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #4a5568;
+    border-radius: 0.25rem;
+    background-color: #1a202c;
+    color: #e2e8f0;
+    box-sizing: border-box;
+}
+
+.modal .form-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}

@@ -129,7 +129,7 @@ class QCliMqttServer {
         
         switch (message.action) {
             case 'start-session':
-                this.startQChatSession(clientId, message.sessionId);
+                this.startQChatSession(clientId, message.sessionId, message.workingDir);
                 break;
             case 'stop-session':
                 this.stopQChatSession(clientId, message.sessionId);
@@ -162,7 +162,7 @@ class QCliMqttServer {
         }
     }
 
-    startQChatSession(clientId, sessionId) {
+    startQChatSession(clientId, sessionId, workingDir = null) {
         const sessionKey = `${clientId}:${sessionId}`;
         
         if (this.sessions.has(sessionKey)) {
@@ -171,10 +171,14 @@ class QCliMqttServer {
         }
 
         try {
-            console.log(`🚀 Starting Q chat session ${sessionId} for client ${clientId}`);
+            // Resolve working directory (handle relative/absolute paths)
+            const resolvedDir = workingDir ? path.resolve(workingDir) : process.cwd();
+            
+            console.log(`🚀 Starting Q chat session ${sessionId} for client ${clientId} in ${resolvedDir}`);
             
             const qProcess = spawn('q', ['chat'], {
                 stdio: ['pipe', 'pipe', 'pipe'],
+                cwd: resolvedDir,
                 env: {
                     ...process.env,
                     TERM: 'xterm-256color'
@@ -185,6 +189,7 @@ class QCliMqttServer {
                 process: qProcess,
                 clientId,
                 sessionId,
+                workingDir: resolvedDir,
                 startTime: new Date(),
                 outputBuffer: '',
                 bufferTimer: null,
@@ -254,8 +259,11 @@ class QCliMqttServer {
                 });
             });
 
-            this.publishToClient(clientId, sessionId, 'status', { type: 'started' });
-            console.log(`✅ Q chat session ${sessionId} started for client ${clientId}`);
+            this.publishToClient(clientId, sessionId, 'status', { 
+                type: 'started',
+                workingDir: resolvedDir
+            });
+            console.log(`✅ Q chat session ${sessionId} started for client ${clientId} in ${resolvedDir}`);
             
         } catch (error) {
             console.error('❌ Error starting Q chat process:', error);

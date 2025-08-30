@@ -39,7 +39,7 @@ class SessionManager {
         
         if (newSessionBtn) {
             newSessionBtn.addEventListener('click', () => {
-                this.createAndStartSession();
+                this.showNewSessionDialog();
             });
         }
         
@@ -51,10 +51,56 @@ class SessionManager {
     }
 
     /**
+     * Show new session dialog with folder selection
+     */
+    showNewSessionDialog() {
+        const dialog = document.createElement('div');
+        dialog.className = 'modal';
+        dialog.innerHTML = `
+            <div class="modal-content">
+                <h3>New Q Chat Session</h3>
+                <div class="form-group">
+                    <label for="sessionName">Session Name:</label>
+                    <input type="text" id="sessionName" placeholder="Q Chat ${this.sessionCounter + 1}">
+                </div>
+                <div class="form-group">
+                    <label for="workingDir">Working Directory:</label>
+                    <input type="text" id="workingDir" placeholder="/absolute/path or ./relative/path">
+                </div>
+                <div class="form-actions">
+                    <button class="btn primary" id="createSession">Create Session</button>
+                    <button class="btn secondary" id="cancelSession">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        const createBtn = dialog.querySelector('#createSession');
+        const cancelBtn = dialog.querySelector('#cancelSession');
+        const nameInput = dialog.querySelector('#sessionName');
+        const dirInput = dialog.querySelector('#workingDir');
+        
+        createBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim() || `Q Chat ${this.sessionCounter + 1}`;
+            const workingDir = dirInput.value.trim();
+            
+            dialog.remove();
+            await this.createAndStartSession(name, workingDir);
+        });
+        
+        cancelBtn.addEventListener('click', () => {
+            dialog.remove();
+        });
+        
+        nameInput.focus();
+    }
+
+    /**
      * Create and start a new session
      */
-    async createAndStartSession() {
-        const session = this.createSession();
+    async createAndStartSession(name = null, workingDir = null) {
+        const session = this.createSession(name, workingDir);
         this.switchToSession(session.id);
         await this.startSession(session.id);
     }
@@ -89,15 +135,17 @@ class SessionManager {
     /**
      * Create a new Q CLI session
      * @param {string} name - Optional session name
+     * @param {string} workingDir - Optional working directory
      * @returns {Object} Session object
      */
-    createSession(name = null) {
+    createSession(name = null, workingDir = null) {
         const sessionId = `session-${++this.sessionCounter}`;
         const sessionName = name || `Q Chat ${this.sessionCounter}`;
         
         const session = {
             id: sessionId,
             name: sessionName,
+            workingDir: workingDir || '',
             isActive: false,
             isRunning: false,
             tab: this.createSessionTab(sessionId, sessionName),
@@ -244,11 +292,13 @@ class SessionManager {
             const topic = `${this.projectName}/server/${this.clientId}/control`;
             const message = { 
                 action: 'start-session',
-                sessionId: sessionId
+                sessionId: sessionId,
+                workingDir: session.workingDir
             };
 
             await this.mqttManager.publish(topic, message);
-            this.addToSessionTerminal(sessionId, '🚀 Starting Q Chat session...', 'system');
+            const dirMsg = session.workingDir ? ` in ${session.workingDir}` : '';
+            this.addToSessionTerminal(sessionId, `🚀 Starting Q Chat session${dirMsg}...`, 'system');
         } catch (error) {
             console.error(`Failed to start session ${sessionId}:`, error);
             this.addToSessionTerminal(sessionId, `❌ Failed to start session: ${error.message}`, 'error');
@@ -429,7 +479,8 @@ class SessionManager {
 
         if (data.type === 'started') {
             session.isRunning = true;
-            this.addToSessionTerminal(sessionId, '✅ Q Chat session started', 'system');
+            const dirMsg = data.workingDir ? ` in ${data.workingDir}` : '';
+            this.addToSessionTerminal(sessionId, `✅ Q Chat session started${dirMsg}`, 'system');
             if (session.isActive) {
                 session.inputSection.classList.add('active');
             }
