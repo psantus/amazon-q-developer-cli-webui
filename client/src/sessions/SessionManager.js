@@ -201,12 +201,29 @@ class SessionManager {
         const nameInput = dialog.querySelector('#sessionName');
         const dirInput = dialog.querySelector('#workingDir');
         
-        createBtn.addEventListener('click', async () => {
+        const createSession = async () => {
             const name = nameInput.value.trim() || `Q Chat ${this.sessionCounter + 1}`;
             const workingDir = dirInput.value.trim();
             
             dialog.remove();
             await this.createAndStartSession(name, workingDir);
+        };
+        
+        createBtn.addEventListener('click', createSession);
+        
+        // Handle Enter key in both input fields
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                createSession();
+            }
+        });
+        
+        dirInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                createSession();
+            }
         });
         
         cancelBtn.addEventListener('click', () => {
