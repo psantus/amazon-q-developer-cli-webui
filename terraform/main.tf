@@ -324,6 +324,11 @@ resource "aws_cognito_user_pool" "q_cli_pool" {
 
   auto_verified_attributes = ["email"]
   
+  # Disable self-registration - only admins can create users
+  admin_create_user_config {
+    allow_admin_create_user_only = true
+  }
+  
   schema {
     attribute_data_type = "String"
     name               = "email"
