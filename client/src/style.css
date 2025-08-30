@@ -559,6 +559,9 @@ button:disabled {
     padding: 0.5rem;
     gap: 1rem;
     flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
 .tab-controls {
