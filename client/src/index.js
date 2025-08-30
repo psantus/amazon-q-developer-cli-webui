@@ -142,19 +142,21 @@ class App {
      */
     handleLogout() {
         try {
-            // Clear stored authentication
-            this.authManager.logout();
+            // Close all sessions first (while MQTT is still connected)
+            if (this.sessionManager) {
+                for (const sessionId of this.sessionManager.sessions.keys()) {
+                    this.sessionManager.closeSession(sessionId);
+                }
+                this.sessionManager = null;
+            }
             
-            // Disconnect MQTT
+            // Then disconnect MQTT
             if (this.mqttManager) {
                 this.mqttManager.disconnect();
             }
             
-            // Clear session manager
-            if (this.sessionManager) {
-                this.sessionManager.cleanup();
-                this.sessionManager = null;
-            }
+            // Clear stored authentication
+            this.authManager.logout();
             
             // Reset UI
             this.uiManager.showLoginButton();
