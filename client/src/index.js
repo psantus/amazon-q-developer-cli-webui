@@ -147,6 +147,8 @@ class App {
                 for (const sessionId of this.sessionManager.sessions.keys()) {
                     this.sessionManager.closeSession(sessionId);
                 }
+                // Clear all session data from localStorage
+                this.sessionManager.clearSessionData();
                 this.sessionManager = null;
             }
             

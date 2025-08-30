@@ -14,6 +14,9 @@ class SessionManager {
         this.setupEventHandlers();
         this.setupTabInterface();
         this.subscribeToServerResponses();
+        
+        // Load saved sessions after setup
+        this.loadSessionData();
     }
 
     /**
@@ -292,6 +295,9 @@ class SessionManager {
         };
 
         this.sessions.set(sessionId, session);
+        
+        // Save session data after creating
+        this.saveSessionData();
         
         console.log(`✅ Created session: ${sessionName} (${sessionId})`);
         console.log(`📊 Total client sessions: ${this.sessions.size}`);
@@ -623,6 +629,9 @@ class SessionManager {
 
         // Remove from sessions map
         this.sessions.delete(sessionId);
+        
+        // Remove from localStorage
+        this.removeSessionFromStorage(sessionId);
 
         // Switch to another session if this was active
         if (this.activeSessionId === sessionId) {
@@ -755,17 +764,157 @@ class SessionManager {
             this.incrementUnreadCount(sessionId);
         }
         
+        // Save session data after adding message
+        this.saveSessionData();
+        
         console.log(`Terminal now has ${session.terminal.children.length} messages`);
     }
 
     /**
-     * Clear session terminal
-     * @param {string} sessionId - Session ID
+     * Save session data to localStorage
      */
+    saveSessionData() {
+        try {
+            const sessionData = {};
+            this.sessions.forEach((session, sessionId) => {
+                // Save session metadata and terminal content
+                const messages = Array.from(session.terminal.children).map(msg => ({
+                    content: msg.textContent,
+                    type: msg.className.replace('terminal-message ', '')
+                }));
+                
+                sessionData[sessionId] = {
+                    id: session.id,
+                    name: session.name,
+                    workingDir: session.workingDir,
+                    isRunning: session.isRunning,
+                    unreadCount: session.unreadCount,
+                    messages: messages
+                };
+            });
+            
+            const storageData = {
+                sessions: sessionData,
+                activeSessionId: this.activeSessionId,
+                sessionCounter: this.sessionCounter
+            };
+            
+            localStorage.setItem('qcli_sessions', JSON.stringify(storageData));
+            console.log('💾 Saved session data to localStorage');
+        } catch (error) {
+            console.error('❌ Failed to save session data:', error);
+        }
+    }
+
+    /**
+     * Load session data from localStorage
+     */
+    loadSessionData() {
+        try {
+            const stored = localStorage.getItem('qcli_sessions');
+            if (!stored) return false;
+            
+            const data = JSON.parse(stored);
+            console.log('🔄 Loading session data from localStorage');
+            
+            // Restore session counter
+            this.sessionCounter = data.sessionCounter || 0;
+            
+            // Restore sessions
+            Object.values(data.sessions || {}).forEach(sessionData => {
+                const session = this.createSessionFromData(sessionData);
+                this.sessions.set(session.id, session);
+            });
+            
+            // Restore active session
+            if (data.activeSessionId && this.sessions.has(data.activeSessionId)) {
+                this.switchToSession(data.activeSessionId);
+            } else if (this.sessions.size > 0) {
+                this.switchToSession(Array.from(this.sessions.keys())[0]);
+            }
+            
+            this.updateVisibleTabs();
+            console.log(`✅ Restored ${this.sessions.size} sessions from localStorage`);
+            return true;
+        } catch (error) {
+            console.error('❌ Failed to load session data:', error);
+            this.clearSessionData();
+            return false;
+        }
+    }
+
+    /**
+     * Create session from stored data
+     */
+    createSessionFromData(sessionData) {
+        const session = {
+            id: sessionData.id,
+            name: sessionData.name,
+            workingDir: sessionData.workingDir || '',
+            isActive: false,
+            isRunning: sessionData.isRunning || false,
+            unreadCount: sessionData.unreadCount || 0,
+            tab: this.createSessionTab(sessionData.id, sessionData.name),
+            terminal: this.createSessionTerminal(sessionData.id),
+            inputSection: this.createSessionInput(sessionData.id)
+        };
+        
+        // Restore terminal messages
+        if (sessionData.messages) {
+            sessionData.messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `terminal-message ${msg.type}`;
+                messageDiv.textContent = msg.content;
+                session.terminal.appendChild(messageDiv);
+            });
+        }
+        
+        // Update notification badge
+        this.updateNotificationBadge(sessionData.id);
+        
+        return session;
+    }
+
+    /**
+     * Clear session data from localStorage
+     */
+    clearSessionData() {
+        localStorage.removeItem('qcli_sessions');
+        console.log('🗑️ Cleared session data from localStorage');
+    }
+
+    /**
+     * Remove specific session from localStorage
+     */
+    removeSessionFromStorage(sessionId) {
+        try {
+            const stored = localStorage.getItem('qcli_sessions');
+            if (!stored) return;
+            
+            const data = JSON.parse(stored);
+            if (data.sessions && data.sessions[sessionId]) {
+                delete data.sessions[sessionId];
+                
+                // Update active session if needed
+                if (data.activeSessionId === sessionId) {
+                    const remainingSessions = Object.keys(data.sessions);
+                    data.activeSessionId = remainingSessions.length > 0 ? remainingSessions[0] : null;
+                }
+                
+                localStorage.setItem('qcli_sessions', JSON.stringify(data));
+                console.log(`🗑️ Removed session ${sessionId} from localStorage`);
+            }
+        } catch (error) {
+            console.error('❌ Failed to remove session from storage:', error);
+        }
+    }
     clearSessionTerminal(sessionId) {
         const session = this.sessions.get(sessionId);
         if (session) {
             session.terminal.innerHTML = '';
+            session.unreadCount = 0;
+            this.updateNotificationBadge(sessionId);
+            this.saveSessionData(); // Save after clearing
         }
     }
 
