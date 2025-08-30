@@ -47,6 +47,9 @@ class App {
             console.log('🚀 Starting initializeApp...');
             this.setupEventHandlers();
             
+            // Hide login modal initially
+            this.uiManager.hideLoginModal();
+            
             // Check for stored authentication
             console.log('🔍 Calling authManager.initialize()...');
             const isAutoLoggedIn = await this.authManager.initialize();
@@ -95,6 +98,7 @@ class App {
     setupEventHandlers() {
         // UI Events
         this.uiManager.on('login', ({ username, password }) => this.handleLogin(username, password));
+        this.uiManager.on('logout', () => this.handleLogout());
         this.uiManager.on('showLogin', () => this.uiManager.showLoginModal());
         this.uiManager.on('cancelLogin', () => this.handleCancelLogin());
         this.uiManager.on('sendInput', () => this.handleSendInput());
@@ -111,6 +115,7 @@ class App {
             this.uiManager.updateStatus('Connected (MQTT5 WebSocket)', 'connected');
             this.uiManager.addToTerminal('🔗 Connected to AWS IoT Core via WebSocket', 'system');
             this.uiManager.addToTerminal('📡 Ready to send and receive messages', 'system');
+            this.uiManager.showLogoutButton();
             this.enableControls();
             this.setupSessionManager();
         });
@@ -123,12 +128,45 @@ class App {
         this.mqttManager.on('disconnected', (error) => {
             this.uiManager.updateStatus('MQTT disconnected', 'error');
             this.uiManager.addToTerminal('📴 MQTT connection lost', 'error');
+            this.uiManager.showLoginButton();
             this.disableControls();
         });
 
         this.mqttManager.on('error', (error) => {
             this.uiManager.showError(`MQTT error: ${error.message}`);
         });
+    }
+
+    /**
+     * Handle logout
+     */
+    handleLogout() {
+        try {
+            // Clear stored authentication
+            this.authManager.logout();
+            
+            // Disconnect MQTT
+            if (this.mqttManager) {
+                this.mqttManager.disconnect();
+            }
+            
+            // Clear session manager
+            if (this.sessionManager) {
+                this.sessionManager.cleanup();
+                this.sessionManager = null;
+            }
+            
+            // Reset UI
+            this.uiManager.showLoginButton();
+            this.uiManager.showLoginModal();
+            this.uiManager.updateStatus('Logged out', 'info');
+            this.uiManager.clearTerminal();
+            
+            console.log('🔓 Logged out successfully');
+        } catch (error) {
+            console.error('Logout error:', error);
+            this.uiManager.showError(`Logout failed: ${error.message}`);
+        }
     }
 
     /**

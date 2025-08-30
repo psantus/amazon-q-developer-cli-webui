@@ -18,6 +18,7 @@ class UIManager {
         
         // Control buttons
         this.elements.loginBtn = document.getElementById('loginBtn');
+        this.elements.logoutBtn = document.getElementById('logoutBtn');
         this.elements.startBtn = document.getElementById('startBtn');
         this.elements.stopBtn = document.getElementById('stopBtn');
         this.elements.clearBtn = document.getElementById('clearBtn');
@@ -44,6 +45,7 @@ class UIManager {
     setupEventListeners() {
         // Control buttons
         this.elements.loginBtn?.addEventListener('click', () => this.emit('showLogin'));
+        this.elements.logoutBtn?.addEventListener('click', () => this.emit('logout'));
         this.elements.startBtn?.addEventListener('click', () => this.emit('startSession'));
         this.elements.stopBtn?.addEventListener('click', () => this.emit('stopSession'));
         this.elements.clearBtn?.addEventListener('click', () => this.emit('clearTerminal'));
@@ -107,6 +109,30 @@ class UIManager {
         if (this.elements.loginModal) {
             this.elements.loginModal.style.display = 'none';
             this.clearLoginForm();
+        }
+    }
+
+    /**
+     * Show logout button and hide login button
+     */
+    showLogoutButton() {
+        if (this.elements.loginBtn) {
+            this.elements.loginBtn.style.display = 'none';
+        }
+        if (this.elements.logoutBtn) {
+            this.elements.logoutBtn.style.display = 'inline-block';
+        }
+    }
+
+    /**
+     * Show login button and hide logout button
+     */
+    showLoginButton() {
+        if (this.elements.loginBtn) {
+            this.elements.loginBtn.style.display = 'inline-block';
+        }
+        if (this.elements.logoutBtn) {
+            this.elements.logoutBtn.style.display = 'none';
         }
     }
 
