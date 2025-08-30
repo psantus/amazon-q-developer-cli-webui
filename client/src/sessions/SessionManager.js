@@ -285,6 +285,7 @@ class SessionManager {
             workingDir: workingDir || '',
             isActive: false,
             isRunning: false,
+            unreadCount: 0,
             tab: this.createSessionTab(sessionId, sessionName),
             terminal: this.createSessionTerminal(sessionId),
             inputSection: this.createSessionInput(sessionId)
@@ -312,6 +313,7 @@ class SessionManager {
         tab.id = `tab-${sessionId}`;
         tab.innerHTML = `
             <span>${sessionName}</span>
+            <span class="notification-badge">0</span>
             <button class="close-btn" onclick="event.stopPropagation()">×</button>
         `;
         
@@ -381,6 +383,46 @@ class SessionManager {
     }
 
     /**
+     * Update notification badge for a session
+     */
+    updateNotificationBadge(sessionId) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        const badge = session.tab.querySelector('.notification-badge');
+        if (!badge) return;
+
+        if (session.unreadCount > 0) {
+            badge.textContent = session.unreadCount > 99 ? '99+' : session.unreadCount;
+            session.tab.classList.add('has-unread');
+        } else {
+            session.tab.classList.remove('has-unread');
+        }
+    }
+
+    /**
+     * Mark session as read (clear unread count)
+     */
+    markSessionAsRead(sessionId) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+
+        session.unreadCount = 0;
+        this.updateNotificationBadge(sessionId);
+    }
+
+    /**
+     * Increment unread count for inactive sessions
+     */
+    incrementUnreadCount(sessionId) {
+        const session = this.sessions.get(sessionId);
+        if (!session || session.isActive) return; // Don't count if session is active
+
+        session.unreadCount++;
+        this.updateNotificationBadge(sessionId);
+    }
+
+    /**
      * Switch to a session
      * @param {string} sessionId - Session ID
      */
@@ -399,6 +441,10 @@ class SessionManager {
             session.terminal.classList.add('active');
             session.tab.classList.add('active');
             session.isActive = true;
+            
+            // Mark session as read when switching to it
+            this.markSessionAsRead(sessionId);
+            
             this.activeSessionId = sessionId;
             
             // Show input section only if session is running
@@ -703,6 +749,11 @@ class SessionManager {
         
         session.terminal.appendChild(messageDiv);
         session.terminal.scrollTop = session.terminal.scrollHeight;
+        
+        // Increment unread count for Q CLI responses (bot messages) if session is not active
+        if (type === 'bot') {
+            this.incrementUnreadCount(sessionId);
+        }
         
         console.log(`Terminal now has ${session.terminal.children.length} messages`);
     }
