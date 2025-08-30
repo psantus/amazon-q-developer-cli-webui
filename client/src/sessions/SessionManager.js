@@ -33,6 +33,7 @@ class SessionManager {
         const sessionTabs = document.getElementById('sessionTabs');
         const newSessionBtn = document.getElementById('newSessionBtn');
         
+        // Always show session tabs bar
         if (sessionTabs) {
             sessionTabs.style.display = 'flex';
         }
@@ -156,6 +157,8 @@ class SessionManager {
         this.sessions.set(sessionId, session);
         
         console.log(`✅ Created session: ${sessionName} (${sessionId})`);
+        console.log(`📊 Total client sessions: ${this.sessions.size}`);
+        console.log(`📊 All sessions:`, Array.from(this.sessions.keys()));
         return session;
     }
 
@@ -398,15 +401,11 @@ class SessionManager {
             if (remainingSessions.length > 0) {
                 this.switchToSession(remainingSessions[0]);
             } else {
-                // Show original terminal if no sessions left
+                // Show original terminal if no sessions left, but keep tabs bar visible
                 this.uiManager.setElementsVisibility({
                     terminal: true,
                     inputSection: false
                 });
-                const sessionTabs = document.getElementById('sessionTabs');
-                if (sessionTabs) {
-                    sessionTabs.style.display = 'none';
-                }
                 this.activeSessionId = null;
             }
         }
@@ -422,6 +421,8 @@ class SessionManager {
     handleMessage(topic, payload) {
         console.log(`📨 SessionManager received message on topic: ${topic}`);
         console.log(`📄 Message payload: ${payload}`);
+        console.log(`📊 Current client sessions: ${this.sessions.size}`);
+        console.log(`📊 All client sessions:`, Array.from(this.sessions.keys()));
         
         // New topic patterns:
         // projectName/client/clientId/sessionId/output
@@ -435,6 +436,9 @@ class SessionManager {
 
         const sessionId = topicParts[3];
         const messageType = topicParts[4]; // output/status
+        
+        console.log(`📋 Message for session ${sessionId}, type: ${messageType}`);
+        console.log(`📋 Session exists: ${this.sessions.has(sessionId)}`);
         
         try {
             const data = JSON.parse(payload);
@@ -503,14 +507,21 @@ class SessionManager {
      */
     addToSessionTerminal(sessionId, content, type = 'system') {
         const session = this.sessions.get(sessionId);
-        if (!session) return;
+        if (!session) {
+            console.warn(`Session ${sessionId} not found for terminal message`);
+            return;
+        }
 
+        console.log(`Adding message to session ${sessionId} terminal:`, content);
+        
         const messageDiv = document.createElement('div');
         messageDiv.className = `terminal-message ${type}`;
         messageDiv.textContent = content;
         
         session.terminal.appendChild(messageDiv);
         session.terminal.scrollTop = session.terminal.scrollHeight;
+        
+        console.log(`Terminal now has ${session.terminal.children.length} messages`);
     }
 
     /**

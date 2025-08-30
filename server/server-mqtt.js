@@ -126,6 +126,8 @@ class QCliMqttServer {
 
     handleControlMessage(clientId, message) {
         console.log(`🎮 Control: ${message.action} for client ${clientId}`);
+        console.log(`📊 Current sessions: ${this.sessions.size}`);
+        console.log(`📊 Active sessions:`, Array.from(this.sessions.keys()));
         
         switch (message.action) {
             case 'start-session':
@@ -142,6 +144,10 @@ class QCliMqttServer {
     handleInputMessage(clientId, sessionId, message) {
         const sessionKey = `${clientId}:${sessionId}`;
         const session = this.sessions.get(sessionKey);
+        
+        console.log(`📝 Input for session ${sessionKey}, exists: ${!!session}`);
+        console.log(`📊 All sessions:`, Array.from(this.sessions.keys()));
+        
         if (session && session.process) {
             try {
                 session.process.stdin.write(message.data + '\n');
@@ -308,19 +314,52 @@ class QCliMqttServer {
     processBufferLine(sessionKey, line, session) {
         const cleanLine = this.cleanTerminalLine(line);
         
+        console.log(`🔍 Processing line for ${sessionKey}: "${cleanLine}"`);
+        
         // Skip empty lines
         if (cleanLine.trim().length === 0) {
+            console.log(`⏭️ Skipping empty line`);
             return;
         }
 
-        // Skip spinner lines entirely - don't show them at all
+        // Extract actual content from spinner lines
         if (this.isSpinnerLine(cleanLine)) {
-            console.log(`🚫 Filtered out spinner: ${cleanLine.substring(0, 30)}...`);
+            const actualContent = this.extractContentFromSpinnerLine(cleanLine);
+            if (actualContent && actualContent.trim().length > 0) {
+                console.log(`✅ Extracted content from spinner line: "${actualContent}"`);
+                session.bufferLines.push(actualContent);
+            } else {
+                console.log(`🚫 Filtered out pure spinner: ${cleanLine.substring(0, 30)}...`);
+            }
             return;
         }
 
         // Add line to buffer
+        console.log(`✅ Adding to buffer: "${cleanLine}"`);
         session.bufferLines.push(cleanLine);
+    }
+
+    extractContentFromSpinnerLine(line) {
+        // Remove ANSI codes
+        let cleaned = line.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+        
+        // Remove spinner characters and "Thinking..." text
+        cleaned = cleaned.replace(/[⠋⠙⠹⠸⠼⠦⠴⠇⠧⠏]/g, '');
+        cleaned = cleaned.replace(/Thinking\.\.\./g, '');
+        
+        // Extract content after cursor control sequences
+        const match = cleaned.match(/\[?\?25h(.+)$/);
+        if (match) {
+            return match[1].trim();
+        }
+        
+        // Fallback: just clean up and return if there's meaningful content
+        cleaned = cleaned.trim();
+        if (cleaned.length > 0 && !cleaned.match(/^[\s\[?\?25[lh]]*$/)) {
+            return cleaned;
+        }
+        
+        return null;
     }
 
     isSpinnerLine(line) {
@@ -361,6 +400,7 @@ class QCliMqttServer {
         const content = cleanedLines.join('\n');
 
         // Send multiline content
+        console.log(`📦 Flushing ${session.bufferLines.length} lines to session ${sessionKey}`);
         this.publishToClient(session.clientId, session.sessionId, 'output', {
             content: content,
             lineCount: session.bufferLines.length,

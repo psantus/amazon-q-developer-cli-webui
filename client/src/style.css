@@ -558,11 +558,13 @@ button:disabled {
     border-bottom: 1px solid #4a5568;
     padding: 0.5rem;
     gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .tab-controls {
     display: flex;
     gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .tab-list {
@@ -570,6 +572,24 @@ button:disabled {
     gap: 0.25rem;
     flex: 1;
     overflow-x: auto;
+    min-width: 0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .session-tabs {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .tab-controls {
+        justify-content: center;
+    }
+    
+    .tab-list {
+        justify-content: flex-start;
+    }
 }
 
 .session-tab {
