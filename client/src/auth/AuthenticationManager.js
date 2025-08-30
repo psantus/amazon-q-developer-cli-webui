@@ -10,6 +10,100 @@ class AuthenticationManager {
     }
 
     /**
+     * Initialize and check for stored authentication
+     */
+    async initialize() {
+        try {
+            // Check for stored credentials first
+            const storedAuth = this.getStoredAuth();
+            if (storedAuth) {
+                console.log('🔄 Found stored credentials, attempting auto-login...');
+                this.credentials = storedAuth.credentials;
+                this.identityId = storedAuth.identityId;
+                this.isAuthenticated = true;
+                
+                console.log('✅ Auto-login successful with stored credentials');
+                return true;
+            }
+            
+            console.log('🔧 AuthenticationManager initialized');
+            return false;
+        } catch (error) {
+            console.error('❌ Failed to initialize AuthenticationManager:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Store authentication data
+     */
+    storeAuth() {
+        try {
+            const authData = {
+                credentials: this.credentials,
+                identityId: this.identityId,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('qcli_auth', JSON.stringify(authData));
+            console.log('💾 Stored auth data successfully');
+        } catch (error) {
+            console.error('❌ Failed to store auth data:', error);
+        }
+    }
+
+    /**
+     * Get stored authentication data
+     */
+    getStoredAuth() {
+        try {
+            const stored = localStorage.getItem('qcli_auth');
+            console.log('🔍 Checking localStorage for qcli_auth:', !!stored);
+            
+            if (!stored) return null;
+            
+            const authData = JSON.parse(stored);
+            console.log('🔍 Parsed auth data:', { 
+                hasCredentials: !!authData.credentials,
+                hasIdentityId: !!authData.identityId,
+                timestamp: authData.timestamp,
+                age: Date.now() - authData.timestamp
+            });
+            
+            // Check if credentials are older than 1 hour
+            const oneHour = 60 * 60 * 1000;
+            if (Date.now() - authData.timestamp > oneHour) {
+                console.log('🕐 Credentials expired, clearing...');
+                this.clearStoredAuth();
+                return null;
+            }
+            
+            return authData;
+        } catch (error) {
+            console.error('❌ Error reading stored auth:', error);
+            this.clearStoredAuth();
+            return null;
+        }
+    }
+
+    /**
+     * Clear stored authentication data
+     */
+    clearStoredAuth() {
+        localStorage.removeItem('qcli_auth');
+        this.isAuthenticated = false;
+        this.credentials = null;
+        this.identityId = null;
+    }
+
+    /**
+     * Logout and clear stored credentials
+     */
+    logout() {
+        this.clearStoredAuth();
+        console.log('🔓 Logged out successfully');
+    }
+
+    /**
      * Authenticate user with Cognito
      * @param {string} username 
      * @param {string} password 
@@ -62,6 +156,9 @@ class AuthenticationManager {
             // Get AWS credentials
             this.credentials = await this.getAwsCredentials(authResult);
             this.isAuthenticated = true;
+            
+            // Store credentials for persistence
+            this.storeAuth();
             
             return this.credentials;
 

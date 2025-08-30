@@ -35,13 +35,58 @@ class App {
         
         this.isInitialized = false;
         
-        // Initialize immediately like the original
-        this.setupEventHandlers();
-        this.uiManager.showLoginModal();
-        this.uiManager.updateStatus('Ready to login', 'info');
-        
-        this.isInitialized = true;
-        console.log('✅ Application initialized successfully');
+        // Initialize authentication and check for stored credentials
+        this.initializeApp();
+    }
+
+    /**
+     * Initialize the application with auto-login support
+     */
+    async initializeApp() {
+        try {
+            console.log('🚀 Starting initializeApp...');
+            this.setupEventHandlers();
+            
+            // Check for stored authentication
+            console.log('🔍 Calling authManager.initialize()...');
+            const isAutoLoggedIn = await this.authManager.initialize();
+            console.log('🔍 authManager.initialize() returned:', isAutoLoggedIn);
+            
+            if (isAutoLoggedIn) {
+                // Auto-login successful, proceed to connect
+                console.log('🔄 Auto-login detected, connecting to MQTT...');
+                this.uiManager.updateStatus('Reconnecting...', 'connecting');
+                await this.connectToMqtt();
+            } else {
+                // No stored credentials, show login
+                console.log('🔑 No stored credentials, showing login modal');
+                this.uiManager.showLoginModal();
+                this.uiManager.updateStatus('Ready to login', 'info');
+            }
+            
+            this.isInitialized = true;
+            console.log('✅ Application initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize app:', error);
+            this.uiManager.showLoginModal();
+            this.uiManager.updateStatus('Ready to login', 'info');
+        }
+    }
+
+    /**
+     * Connect to MQTT with current credentials
+     */
+    async connectToMqtt() {
+        try {
+            const authStatus = this.authManager.getAuthStatus();
+            await this.mqttManager.connect(authStatus.credentials, authStatus.identityId);
+        } catch (error) {
+            console.error('Failed to connect to MQTT:', error);
+            this.uiManager.showError(`Failed to connect: ${error.message}`);
+            // Clear stored auth on connection failure
+            this.authManager.clearStoredAuth();
+            this.uiManager.showLoginModal();
+        }
     }
 
     /**
