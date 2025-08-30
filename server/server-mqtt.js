@@ -6,7 +6,8 @@ require('dotenv').config();
 
 class QCliMqttServer {
     constructor() {
-        this.sessions = new Map();
+        this.sessions = new Map(); // sessionId -> session object
+        this.clientSessions = new Map(); // clientId -> Set of sessionIds
         this.device = null;
         this.projectName = process.env.PROJECT_NAME || 'q-cli-webui';
         this.region = process.env.AWS_REGION || 'us-east-1';
@@ -50,25 +51,25 @@ class QCliMqttServer {
             console.log('✅ Connected to AWS IoT Core');
             this.isConnected = true;
             
-            // Subscribe to ONLY the wildcard patterns we have permission for
-            const inputTopic = `${this.projectName}/server/+/input`;
+            // Subscribe to control topic (single per server) and session-specific input topics
             const controlTopic = `${this.projectName}/server/+/control`;
+            const inputTopic = `${this.projectName}/server/+/+/input`; // clientId/sessionId/input
             
             console.log('📡 Subscribing to topics...');
-            
-            this.device.subscribe(inputTopic, { qos: 0 }, (error) => {
-                if (error) {
-                    console.error(`❌ Failed to subscribe to ${inputTopic}:`, error);
-                } else {
-                    console.log(`✅ Subscribed to ${inputTopic}`);
-                }
-            });
             
             this.device.subscribe(controlTopic, { qos: 0 }, (error) => {
                 if (error) {
                     console.error(`❌ Failed to subscribe to ${controlTopic}:`, error);
                 } else {
                     console.log(`✅ Subscribed to ${controlTopic}`);
+                }
+            });
+            
+            this.device.subscribe(inputTopic, { qos: 0 }, (error) => {
+                if (error) {
+                    console.error(`❌ Failed to subscribe to ${inputTopic}:`, error);
+                } else {
+                    console.log(`✅ Subscribed to ${inputTopic}`);
                     console.log('🚀 Server ready! Waiting for client messages...');
                 }
             });
@@ -86,20 +87,23 @@ class QCliMqttServer {
                 
                 console.log(`🔍 DEBUG: Topic parts: [${topicParts.join(', ')}]`);
                 
-                if (topicParts.length !== 4) {
-                    console.log(`⚠️ Invalid topic format: ${topic} (expected 4 parts, got ${topicParts.length})`);
-                    return;
-                }
-                
-                const clientId = topicParts[2];
-                const messageType = topicParts[3];
-
-                console.log(`📨 Received ${messageType} from client: ${clientId}`);
-
-                if (messageType === 'control') {
+                if (topicParts[topicParts.length - 1] === 'control') {
+                    // Control message: projectName/server/clientId/control
+                    if (topicParts.length !== 4) {
+                        console.log(`⚠️ Invalid control topic format: ${topic}`);
+                        return;
+                    }
+                    const clientId = topicParts[2];
                     this.handleControlMessage(clientId, message);
-                } else if (messageType === 'input') {
-                    this.handleInputMessage(clientId, message);
+                } else if (topicParts[topicParts.length - 1] === 'input') {
+                    // Input message: projectName/server/clientId/sessionId/input
+                    if (topicParts.length !== 5) {
+                        console.log(`⚠️ Invalid input topic format: ${topic}`);
+                        return;
+                    }
+                    const clientId = topicParts[2];
+                    const sessionId = topicParts[3];
+                    this.handleInputMessage(clientId, sessionId, message);
                 }
             } catch (error) {
                 console.error('❌ Error processing message:', error);
@@ -124,47 +128,50 @@ class QCliMqttServer {
         console.log(`🎮 Control: ${message.action} for client ${clientId}`);
         
         switch (message.action) {
-            case 'start-q-chat':
-                this.startQChatSession(clientId);
+            case 'start-session':
+                this.startQChatSession(clientId, message.sessionId);
                 break;
-            case 'stop-q-chat':
-                this.stopQChatSession(clientId);
+            case 'stop-session':
+                this.stopQChatSession(clientId, message.sessionId);
                 break;
             default:
                 console.log(`❓ Unknown control action: ${message.action}`);
         }
     }
 
-    handleInputMessage(clientId, message) {
-        const session = this.sessions.get(clientId);
+    handleInputMessage(clientId, sessionId, message) {
+        const sessionKey = `${clientId}:${sessionId}`;
+        const session = this.sessions.get(sessionKey);
         if (session && session.process) {
             try {
                 session.process.stdin.write(message.data + '\n');
-                console.log(`📝 Sent input to Q chat for ${clientId}`);
+                console.log(`📝 Sent input to Q chat session ${sessionId} for ${clientId}`);
             } catch (error) {
                 console.error('❌ Error writing to Q chat process:', error);
-                this.publishToClient(clientId, 'status', {
+                this.publishToClient(clientId, sessionId, 'status', {
                     type: 'error',
                     message: 'Failed to send input: ' + error.message
                 });
             }
         } else {
-            console.log(`❌ No active Q chat session for client ${clientId}`);
-            this.publishToClient(clientId, 'status', {
+            console.log(`❌ No active Q chat session ${sessionId} for client ${clientId}`);
+            this.publishToClient(clientId, sessionId, 'status', {
                 type: 'error',
                 message: 'No active Q chat session found'
             });
         }
     }
 
-    startQChatSession(clientId) {
-        if (this.sessions.has(clientId)) {
-            console.log(`⚠️ Session already exists for client ${clientId}`);
+    startQChatSession(clientId, sessionId) {
+        const sessionKey = `${clientId}:${sessionId}`;
+        
+        if (this.sessions.has(sessionKey)) {
+            console.log(`⚠️ Session already exists: ${sessionKey}`);
             return;
         }
 
         try {
-            console.log(`🚀 Starting Q chat session for client ${clientId}`);
+            console.log(`🚀 Starting Q chat session ${sessionId} for client ${clientId}`);
             
             const qProcess = spawn('q', ['chat'], {
                 stdio: ['pipe', 'pipe', 'pipe'],
@@ -177,33 +184,49 @@ class QCliMqttServer {
             const session = {
                 process: qProcess,
                 clientId,
+                sessionId,
                 startTime: new Date(),
                 outputBuffer: '',
                 bufferTimer: null,
                 bufferLines: [],
-                maxLines: 10,        // Send after N lines
-                maxWaitMs: 500       // Or after M milliseconds
+                maxLines: 10,
+                maxWaitMs: 500
             };
 
-            this.sessions.set(clientId, session);
+            this.sessions.set(sessionKey, session);
+            
+            // Track client sessions
+            if (!this.clientSessions.has(clientId)) {
+                this.clientSessions.set(clientId, new Set());
+            }
+            this.clientSessions.get(clientId).add(sessionId);
 
             // Handle stdout with buffering
             qProcess.stdout.on('data', (data) => {
-                this.bufferOutput(clientId, data.toString());
+                this.bufferOutput(sessionKey, data.toString());
             });
 
             // Handle stderr with buffering
             qProcess.stderr.on('data', (data) => {
-                this.bufferOutput(clientId, data.toString());
+                this.bufferOutput(sessionKey, data.toString());
             });
 
             // Handle process exit
             qProcess.on('exit', (code, signal) => {
-                console.log(`🔚 Q chat process exited for ${clientId}`);
-                // Flush any remaining buffer
-                this.flushBuffer(clientId);
-                this.sessions.delete(clientId);
-                this.publishToClient(clientId, 'status', {
+                console.log(`🔚 Q chat process exited for session ${sessionKey}`);
+                this.flushBuffer(sessionKey);
+                this.sessions.delete(sessionKey);
+                
+                // Remove from client sessions
+                const clientSessionSet = this.clientSessions.get(clientId);
+                if (clientSessionSet) {
+                    clientSessionSet.delete(sessionId);
+                    if (clientSessionSet.size === 0) {
+                        this.clientSessions.delete(clientId);
+                    }
+                }
+                
+                this.publishToClient(clientId, sessionId, 'status', {
                     type: 'exit',
                     code,
                     signal
@@ -212,29 +235,39 @@ class QCliMqttServer {
 
             // Handle process error
             qProcess.on('error', (error) => {
-                console.error(`❌ Q chat process error for ${clientId}:`, error);
-                this.flushBuffer(clientId);
-                this.sessions.delete(clientId);
-                this.publishToClient(clientId, 'status', {
+                console.error(`❌ Q chat process error for session ${sessionKey}:`, error);
+                this.flushBuffer(sessionKey);
+                this.sessions.delete(sessionKey);
+                
+                // Remove from client sessions
+                const clientSessionSet = this.clientSessions.get(clientId);
+                if (clientSessionSet) {
+                    clientSessionSet.delete(sessionId);
+                    if (clientSessionSet.size === 0) {
+                        this.clientSessions.delete(clientId);
+                    }
+                }
+                
+                this.publishToClient(clientId, sessionId, 'status', {
                     type: 'error',
                     message: 'Q chat process error: ' + error.message
                 });
             });
 
-            this.publishToClient(clientId, 'status', { type: 'started' });
-            console.log(`✅ Q chat session started for client ${clientId}`);
+            this.publishToClient(clientId, sessionId, 'status', { type: 'started' });
+            console.log(`✅ Q chat session ${sessionId} started for client ${clientId}`);
             
         } catch (error) {
             console.error('❌ Error starting Q chat process:', error);
-            this.publishToClient(clientId, 'status', {
+            this.publishToClient(clientId, sessionId, 'status', {
                 type: 'error',
                 message: 'Failed to start Q chat: ' + error.message
             });
         }
     }
 
-    bufferOutput(clientId, data) {
-        const session = this.sessions.get(clientId);
+    bufferOutput(sessionKey, data) {
+        const session = this.sessions.get(sessionKey);
         if (!session) return;
 
         // Add to buffer
@@ -249,22 +282,22 @@ class QCliMqttServer {
         // Process complete lines
         for (const line of lines) {
             if (line.trim().length > 0) {
-                this.processBufferLine(clientId, line, session);
+                this.processBufferLine(sessionKey, line, session);
             }
         }
 
         // Check if we should flush the buffer
         if (session.bufferLines.length >= session.maxLines) {
-            this.flushBuffer(clientId);
+            this.flushBuffer(sessionKey);
         } else if (session.bufferLines.length > 0 && !session.bufferTimer) {
             // Start timer for partial buffer
             session.bufferTimer = setTimeout(() => {
-                this.flushBuffer(clientId);
+                this.flushBuffer(sessionKey);
             }, session.maxWaitMs);
         }
     }
 
-    processBufferLine(clientId, line, session) {
+    processBufferLine(sessionKey, line, session) {
         const cleanLine = this.cleanTerminalLine(line);
         
         // Skip empty lines
@@ -305,8 +338,8 @@ class QCliMqttServer {
         return isSpinner;
     }
 
-    flushBuffer(clientId) {
-        const session = this.sessions.get(clientId);
+    flushBuffer(sessionKey) {
+        const session = this.sessions.get(sessionKey);
         if (!session || session.bufferLines.length === 0) return;
 
         // Clear timer
@@ -320,13 +353,13 @@ class QCliMqttServer {
         const content = cleanedLines.join('\n');
 
         // Send multiline content
-        this.publishToClient(clientId, 'output', {
+        this.publishToClient(session.clientId, session.sessionId, 'output', {
             content: content,
             lineCount: session.bufferLines.length,
             isMultiline: true
         });
 
-        console.log(`📦 Sent ${session.bufferLines.length} lines to client ${clientId}`);
+        console.log(`📦 Sent ${session.bufferLines.length} lines to session ${sessionKey}`);
 
         // Clear buffer
         session.bufferLines = [];
@@ -345,29 +378,39 @@ class QCliMqttServer {
             .trim();
     }
 
-    stopQChatSession(clientId) {
-        const session = this.sessions.get(clientId);
+    stopQChatSession(clientId, sessionId) {
+        const sessionKey = `${clientId}:${sessionId}`;
+        const session = this.sessions.get(sessionKey);
         if (session && session.process) {
-            console.log(`🛑 Stopping Q chat session for client ${clientId}`);
+            console.log(`🛑 Stopping Q chat session ${sessionId} for client ${clientId}`);
             session.process.kill('SIGTERM');
-            this.sessions.delete(clientId);
+            this.sessions.delete(sessionKey);
+            
+            // Remove from client sessions
+            const clientSessionSet = this.clientSessions.get(clientId);
+            if (clientSessionSet) {
+                clientSessionSet.delete(sessionId);
+                if (clientSessionSet.size === 0) {
+                    this.clientSessions.delete(clientId);
+                }
+            }
         }
     }
 
-    publishToClient(clientId, messageType, data) {
+    publishToClient(clientId, sessionId, messageType, data) {
         if (!this.isConnected) {
             console.log(`⚠️ Cannot publish - not connected to IoT Core`);
             return;
         }
         
-        const topic = `${this.projectName}/client/${clientId}/${messageType}`;
+        const topic = `${this.projectName}/client/${clientId}/${sessionId}/${messageType}`;
         const message = JSON.stringify(data);
         
         this.device.publish(topic, message, { qos: 0 }, (error) => {
             if (error) {
                 console.error(`❌ Error publishing to ${topic}:`, error);
             } else {
-                console.log(`📡 Published ${messageType} to client ${clientId}`);
+                console.log(`📡 Published ${messageType} to session ${sessionId} for client ${clientId}`);
             }
         });
     }
@@ -377,12 +420,13 @@ class QCliMqttServer {
         this.isConnected = false;
         
         // Clean up all sessions
-        for (const [clientId, session] of this.sessions) {
+        for (const [sessionKey, session] of this.sessions) {
             if (session.process) {
                 session.process.kill('SIGTERM');
             }
         }
         this.sessions.clear();
+        this.clientSessions.clear();
 
         // Close IoT connection
         if (this.device) {

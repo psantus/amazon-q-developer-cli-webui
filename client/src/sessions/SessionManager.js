@@ -1,5 +1,5 @@
 /**
- * Manages multiple Q CLI sessions
+ * Manages multiple Q CLI sessions with tab-based UI
  */
 class SessionManager {
     constructor(mqttManager, uiManager, clientId) {
@@ -12,6 +12,7 @@ class SessionManager {
         this.projectName = window.AWS_CONFIG.projectName;
         
         this.setupEventHandlers();
+        this.setupTabInterface();
         this.subscribeToServerResponses();
     }
 
@@ -26,14 +27,48 @@ class SessionManager {
     }
 
     /**
-     * Subscribe to server responses using original working topic pattern
+     * Setup tab interface
+     */
+    setupTabInterface() {
+        const sessionTabs = document.getElementById('sessionTabs');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        
+        if (sessionTabs) {
+            sessionTabs.style.display = 'flex';
+        }
+        
+        if (newSessionBtn) {
+            newSessionBtn.addEventListener('click', () => {
+                this.createAndStartSession();
+            });
+        }
+        
+        // Hide default terminal and input when tabs are active
+        this.uiManager.setElementsVisibility({
+            terminal: false,
+            inputSection: false
+        });
+    }
+
+    /**
+     * Create and start a new session
+     */
+    async createAndStartSession() {
+        const session = this.createSession();
+        this.switchToSession(session.id);
+        await this.startSession(session.id);
+    }
+
+    /**
+     * Subscribe to server responses using session-specific topic pattern
      */
     async subscribeToServerResponses() {
         try {
-            const outputTopic = `${this.projectName}/client/${this.clientId}/output`;
-            const statusTopic = `${this.projectName}/client/${this.clientId}/status`;
+            // Subscribe to all session outputs and status for this client
+            const outputTopic = `${this.projectName}/client/${this.clientId}/+/output`;
+            const statusTopic = `${this.projectName}/client/${this.clientId}/+/status`;
             
-            console.log('📡 Subscribing to topics:');
+            console.log('📡 Subscribing to session topics:');
             console.log(`   - ${outputTopic}`);
             console.log(`   - ${statusTopic}`);
             
@@ -43,11 +78,10 @@ class SessionManager {
             ];
 
             await this.mqttManager.subscribe(topics);
-            console.log('✅ Subscribed to server response topics');
-            this.uiManager.addToTerminal(`📡 Subscribed to: ${outputTopic}`, 'system');
-            this.uiManager.addToTerminal(`📡 Subscribed to: ${statusTopic}`, 'system');
+            console.log('✅ Subscribed to session response topics');
+            this.uiManager.addToTerminal(`📡 Subscribed to session topics`, 'system');
         } catch (error) {
-            console.error('❌ Failed to subscribe to server topics:', error);
+            console.error('❌ Failed to subscribe to session topics:', error);
             this.uiManager.showError(`Failed to subscribe to topics: ${error.message}`);
         }
     }
@@ -66,6 +100,7 @@ class SessionManager {
             name: sessionName,
             isActive: false,
             isRunning: false,
+            tab: this.createSessionTab(sessionId, sessionName),
             terminal: this.createSessionTerminal(sessionId),
             inputSection: this.createSessionInput(sessionId)
         };
@@ -77,20 +112,44 @@ class SessionManager {
     }
 
     /**
+     * Create tab for session
+     * @param {string} sessionId - Session ID
+     * @param {string} sessionName - Session name
+     * @returns {HTMLElement} Tab element
+     */
+    createSessionTab(sessionId, sessionName) {
+        const tabList = document.getElementById('tabList');
+        
+        const tab = document.createElement('button');
+        tab.className = 'session-tab';
+        tab.id = `tab-${sessionId}`;
+        tab.innerHTML = `
+            <span>${sessionName}</span>
+            <button class="close-btn" onclick="event.stopPropagation()">×</button>
+        `;
+        
+        tab.addEventListener('click', () => this.switchToSession(sessionId));
+        
+        const closeBtn = tab.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => this.closeSession(sessionId));
+        
+        tabList.appendChild(tab);
+        return tab;
+    }
+
+    /**
      * Create terminal element for session
      * @param {string} sessionId - Session ID
      * @returns {HTMLElement} Terminal element
      */
     createSessionTerminal(sessionId) {
-        const terminal = this.uiManager.createElement('div', {
-            id: `terminal-${sessionId}`,
-            className: 'terminal session-terminal',
-            style: 'display: none;'
-        });
+        const sessionContent = document.getElementById('sessionContent');
         
-        const mainTerminal = this.uiManager.getElement('terminal');
-        mainTerminal.parentNode.appendChild(terminal);
+        const terminal = document.createElement('div');
+        terminal.id = `terminal-${sessionId}`;
+        terminal.className = 'terminal session-terminal';
         
+        sessionContent.appendChild(terminal);
         return terminal;
     }
 
@@ -100,11 +159,11 @@ class SessionManager {
      * @returns {HTMLElement} Input section element
      */
     createSessionInput(sessionId) {
-        const inputSection = this.uiManager.createElement('div', {
-            id: `inputSection-${sessionId}`,
-            className: 'input-section session-input',
-            style: 'display: none;'
-        });
+        const sessionContent = document.getElementById('sessionContent');
+        
+        const inputSection = document.createElement('div');
+        inputSection.id = `inputSection-${sessionId}`;
+        inputSection.className = 'input-section session-input';
         
         inputSection.innerHTML = `
             <div class="prompt-indicator" id="promptIndicator-${sessionId}"></div>
@@ -114,9 +173,6 @@ class SessionManager {
                 <button class="btn secondary" id="clearInputBtn-${sessionId}">Clear Input</button>
             </div>
         `;
-
-        const mainInputSection = this.uiManager.getElement('inputSection');
-        mainInputSection.parentNode.appendChild(inputSection);
 
         // Add event listeners
         const sendBtn = inputSection.querySelector(`#sendBtn-${sessionId}`);
@@ -133,6 +189,7 @@ class SessionManager {
             }
         });
 
+        sessionContent.appendChild(inputSection);
         return inputSection;
     }
 
@@ -141,33 +198,33 @@ class SessionManager {
      * @param {string} sessionId - Session ID
      */
     switchToSession(sessionId) {
-        // Hide all sessions
+        // Hide all sessions and deactivate tabs
         this.sessions.forEach((session, id) => {
-            session.terminal.style.display = 'none';
-            session.inputSection.style.display = 'none';
+            session.terminal.classList.remove('active');
+            session.inputSection.classList.remove('active');
+            session.tab.classList.remove('active');
             session.isActive = false;
-        });
-
-        // Hide original terminal and input
-        this.uiManager.setElementsVisibility({
-            terminal: false,
-            inputSection: false
         });
 
         // Show active session
         const session = this.sessions.get(sessionId);
         if (session) {
-            session.terminal.style.display = 'block';
-            session.inputSection.style.display = session.isRunning ? 'block' : 'none';
+            session.terminal.classList.add('active');
+            session.tab.classList.add('active');
             session.isActive = true;
             this.activeSessionId = sessionId;
+            
+            // Show input section only if session is running
+            if (session.isRunning) {
+                session.inputSection.classList.add('active');
+            }
             
             console.log(`Switched to session: ${session.name} (${sessionId})`);
         }
     }
 
     /**
-     * Start Q Chat for a session - using original working topic pattern
+     * Start Q Chat for a session - using new session-specific topic pattern
      * @param {string} sessionId - Session ID
      */
     async startSession(sessionId) {
@@ -183,9 +240,12 @@ class SessionManager {
         }
 
         try {
-            // Use original working topic pattern: projectName/server/clientId/control
+            // Use control topic: projectName/server/clientId/control
             const topic = `${this.projectName}/server/${this.clientId}/control`;
-            const message = { action: 'start-q-chat' };
+            const message = { 
+                action: 'start-session',
+                sessionId: sessionId
+            };
 
             await this.mqttManager.publish(topic, message);
             this.addToSessionTerminal(sessionId, '🚀 Starting Q Chat session...', 'system');
@@ -196,7 +256,7 @@ class SessionManager {
     }
 
     /**
-     * Stop Q Chat for a session - using original working topic pattern
+     * Stop Q Chat for a session - using new session-specific topic pattern
      * @param {string} sessionId - Session ID
      */
     async stopSession(sessionId) {
@@ -207,9 +267,12 @@ class SessionManager {
         }
 
         try {
-            // Use original working topic pattern: projectName/server/clientId/control
+            // Use control topic: projectName/server/clientId/control
             const topic = `${this.projectName}/server/${this.clientId}/control`;
-            const message = { action: 'stop-q-chat' };
+            const message = { 
+                action: 'stop-session',
+                sessionId: sessionId
+            };
 
             await this.mqttManager.publish(topic, message);
             this.addToSessionTerminal(sessionId, '🛑 Stopping Q Chat session...', 'system');
@@ -220,7 +283,7 @@ class SessionManager {
     }
 
     /**
-     * Send input to a session - using original working topic pattern
+     * Send input to a session - using new session-specific topic pattern
      * @param {string} sessionId - Session ID
      */
     async sendSessionInput(sessionId) {
@@ -233,8 +296,8 @@ class SessionManager {
         if (!input) return;
 
         try {
-            // Use original working topic pattern: projectName/server/clientId/input
-            const topic = `${this.projectName}/server/${this.clientId}/input`;
+            // Use session-specific input topic: projectName/server/clientId/sessionId/input
+            const topic = `${this.projectName}/server/${this.clientId}/${sessionId}/input`;
             const message = { data: input };
 
             await this.mqttManager.publish(topic, message);
@@ -259,36 +322,6 @@ class SessionManager {
     }
 
     /**
-     * Switch to a session
-     * @param {string} sessionId - Session ID
-     */
-    switchToSession(sessionId) {
-        // Hide all sessions
-        this.sessions.forEach((session, id) => {
-            session.terminal.style.display = 'none';
-            session.inputSection.style.display = 'none';
-            session.isActive = false;
-        });
-
-        // Hide original terminal and input
-        this.uiManager.setElementsVisibility({
-            terminal: false,
-            inputSection: false
-        });
-
-        // Show active session
-        const session = this.sessions.get(sessionId);
-        if (session) {
-            session.terminal.style.display = 'block';
-            session.inputSection.style.display = session.isRunning ? 'block' : 'none';
-            session.isActive = true;
-            this.activeSessionId = sessionId;
-            
-            console.log(`Switched to session: ${session.name} (${sessionId})`);
-        }
-    }
-
-    /**
      * Close a session
      * @param {string} sessionId - Session ID
      */
@@ -304,6 +337,7 @@ class SessionManager {
         // Remove UI elements
         session.terminal.remove();
         session.inputSection.remove();
+        session.tab.remove();
 
         // Remove from sessions map
         this.sessions.delete(sessionId);
@@ -319,6 +353,10 @@ class SessionManager {
                     terminal: true,
                     inputSection: false
                 });
+                const sessionTabs = document.getElementById('sessionTabs');
+                if (sessionTabs) {
+                    sessionTabs.style.display = 'none';
+                }
                 this.activeSessionId = null;
             }
         }
@@ -327,7 +365,7 @@ class SessionManager {
     }
 
     /**
-     * Handle MQTT message - adapted for original topic pattern
+     * Handle MQTT message - adapted for session-specific topic pattern
      * @param {string} topic - MQTT topic
      * @param {string} payload - Message payload
      */
@@ -335,29 +373,27 @@ class SessionManager {
         console.log(`📨 SessionManager received message on topic: ${topic}`);
         console.log(`📄 Message payload: ${payload}`);
         
-        // Original topic patterns:
-        // projectName/client/clientId/output
-        // projectName/client/clientId/status
+        // New topic patterns:
+        // projectName/client/clientId/sessionId/output
+        // projectName/client/clientId/sessionId/status
         
         const topicParts = topic.split('/');
-        if (topicParts.length < 4) {
-            console.warn(`Invalid topic format: ${topic}`);
+        if (topicParts.length < 5) {
+            console.warn(`Invalid session topic format: ${topic}`);
             return;
         }
 
-        const messageType = topicParts[topicParts.length - 1]; // last part (output/status)
+        const sessionId = topicParts[3];
+        const messageType = topicParts[4]; // output/status
         
         try {
             const data = JSON.parse(payload);
-            console.log(`📋 Parsed message data:`, data);
-            
-            // Route to active session if exists, otherwise to main terminal
-            const activeSession = this.getActiveSession();
+            console.log(`📋 Parsed message data for session ${sessionId}:`, data);
             
             if (messageType === 'output') {
-                this.handleSessionOutput(activeSession?.id || null, data);
+                this.handleSessionOutput(sessionId, data);
             } else if (messageType === 'status') {
-                this.handleSessionStatus(activeSession?.id || null, data);
+                this.handleSessionStatus(sessionId, data);
             }
         } catch (error) {
             console.error(`Error parsing message:`, error);
@@ -367,89 +403,44 @@ class SessionManager {
 
     /**
      * Handle session output
-     * @param {string|null} sessionId - Session ID (null for main terminal)
+     * @param {string} sessionId - Session ID
      * @param {Object} data - Output data
      */
     handleSessionOutput(sessionId, data) {
-        console.log(`🖥️ Handling output for session: ${sessionId || 'main terminal'}`, data);
+        console.log(`🖥️ Handling output for session: ${sessionId}`, data);
         
-        if (data.type === 'stdout') {
-            if (sessionId) {
-                this.addToSessionTerminal(sessionId, data.content, 'bot');
-            } else {
-                // Route to main terminal via UIManager
-                this.uiManager.addToTerminal(data.content, 'bot');
-            }
-        } else if (data.type === 'stderr') {
-            if (sessionId) {
-                this.addToSessionTerminal(sessionId, data.content, 'error');
-            } else {
-                // Route to main terminal via UIManager
-                this.uiManager.addToTerminal(data.content, 'error');
-            }
-        } else {
-            // Handle other output types
-            const content = data.content || data.data || JSON.stringify(data);
-            if (sessionId) {
-                this.addToSessionTerminal(sessionId, content, 'bot');
-            } else {
-                this.uiManager.addToTerminal(content, 'bot');
-            }
-        }
+        const content = data.content || data.data || JSON.stringify(data);
+        this.addToSessionTerminal(sessionId, content, 'bot');
     }
 
     /**
      * Handle session status
-     * @param {string|null} sessionId - Session ID (null for main terminal)
+     * @param {string} sessionId - Session ID
      * @param {Object} data - Status data
      */
     handleSessionStatus(sessionId, data) {
-        console.log(`📊 Handling status for session: ${sessionId || 'main terminal'}`, data);
+        console.log(`📊 Handling status for session: ${sessionId}`, data);
         
-        if (sessionId) {
-            const session = this.sessions.get(sessionId);
-            if (!session) {
-                console.warn(`Session ${sessionId} not found for status update`);
-                return;
-            }
+        const session = this.sessions.get(sessionId);
+        if (!session) {
+            console.warn(`Session ${sessionId} not found for status update`);
+            return;
+        }
 
-            if (data.type === 'started') {
-                session.isRunning = true;
-                this.addToSessionTerminal(sessionId, '✅ Q Chat session started', 'system');
-                if (session.isActive) {
-                    session.inputSection.style.display = 'block';
-                }
-            } else if (data.type === 'stopped') {
-                session.isRunning = false;
-                this.addToSessionTerminal(sessionId, '🛑 Q Chat session stopped', 'system');
-                if (session.isActive) {
-                    session.inputSection.style.display = 'none';
-                }
-            } else if (data.type === 'error') {
-                this.addToSessionTerminal(sessionId, `❌ Error: ${data.message}`, 'error');
+        if (data.type === 'started') {
+            session.isRunning = true;
+            this.addToSessionTerminal(sessionId, '✅ Q Chat session started', 'system');
+            if (session.isActive) {
+                session.inputSection.classList.add('active');
             }
-        } else {
-            // Handle status for main terminal
-            if (data.type === 'started') {
-                this.uiManager.addToTerminal('✅ Q Chat session started', 'system');
-                this.uiManager.setElementsVisibility({ inputSection: true });
-                // Enable send button
-                this.uiManager.setControlsState({ sendBtn: true });
-            } else if (data.type === 'stopped') {
-                this.uiManager.addToTerminal('🛑 Q Chat session stopped', 'system');
-                this.uiManager.setElementsVisibility({ inputSection: false });
-                // Disable send button
-                this.uiManager.setControlsState({ sendBtn: false });
-            } else if (data.type === 'error') {
-                this.uiManager.addToTerminal(`❌ Error: ${data.message}`, 'error');
-            } else if (data.type === 'input-request') {
-                // Show input section when server requests input
-                this.uiManager.setElementsVisibility({ inputSection: true });
-                this.uiManager.setControlsState({ sendBtn: true });
-                if (data.prompt) {
-                    this.uiManager.updatePromptIndicator(data.prompt);
-                }
+        } else if (data.type === 'stopped' || data.type === 'exit') {
+            session.isRunning = false;
+            this.addToSessionTerminal(sessionId, '🛑 Q Chat session stopped', 'system');
+            if (session.isActive) {
+                session.inputSection.classList.remove('active');
             }
+        } else if (data.type === 'error') {
+            this.addToSessionTerminal(sessionId, `❌ Error: ${data.message}`, 'error');
         }
     }
 

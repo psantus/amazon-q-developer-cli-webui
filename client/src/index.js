@@ -153,13 +153,11 @@ class App {
         }
 
         try {
-            // Create a new session
-            const session = this.sessionManager.createSession();
-            this.sessionManager.switchToSession(session.id);
-            await this.sessionManager.startSession(session.id);
+            // Create and start a new session
+            await this.sessionManager.createAndStartSession();
             
             this.uiManager.setControlsState({
-                startBtn: false,
+                startBtn: true, // Keep enabled for creating more sessions
                 stopBtn: true
             });
             

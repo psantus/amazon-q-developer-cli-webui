@@ -550,3 +550,93 @@ button:disabled {
     border-radius: 3px;
     padding: 2px 6px;
 }
+/* Session Tabs */
+.session-tabs {
+    display: flex;
+    align-items: center;
+    background: #2d3748;
+    border-bottom: 1px solid #4a5568;
+    padding: 0.5rem;
+    gap: 1rem;
+}
+
+.tab-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tab-list {
+    display: flex;
+    gap: 0.25rem;
+    flex: 1;
+    overflow-x: auto;
+}
+
+.session-tab {
+    display: flex;
+    align-items: center;
+    background: #4a5568;
+    color: #e2e8f0;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    white-space: nowrap;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+}
+
+.session-tab:hover {
+    background: #718096;
+}
+
+.session-tab.active {
+    background: #3182ce;
+    color: white;
+}
+
+.session-tab .close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 0.5rem;
+    font-size: 1.2em;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.session-tab .close-btn:hover {
+    opacity: 1;
+}
+
+.session-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.session-terminal {
+    display: none;
+    flex: 1;
+}
+
+.session-terminal.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.session-input {
+    display: none;
+}
+
+.session-input.active {
+    display: block;
+}
+
+.btn.small {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
