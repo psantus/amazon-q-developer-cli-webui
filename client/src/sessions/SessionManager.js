@@ -44,11 +44,130 @@ class SessionManager {
             });
         }
         
+        // Setup keyboard navigation
+        this.setupKeyboardNavigation();
+        
+        // Setup mobile navigation
+        this.setupMobileNavigation();
+        
         // Hide default terminal and input when tabs are active
         this.uiManager.setElementsVisibility({
             terminal: false,
             inputSection: false
         });
+    }
+
+    /**
+     * Setup keyboard navigation for session switching
+     */
+    setupKeyboardNavigation() {
+        document.addEventListener('keydown', (e) => {
+            // Only handle if not typing in input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            // Ctrl/Cmd + Left/Right arrows to switch sessions
+            if ((e.ctrlKey || e.metaKey) && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.switchToAdjacentSession(e.code === 'ArrowLeft' ? -1 : 1);
+                return false;
+            }
+        }, true); // Use capture phase for better compatibility
+    }
+
+    /**
+     * Setup mobile navigation controls
+     */
+    setupMobileNavigation() {
+        const sessionTabs = document.getElementById('sessionTabs');
+        if (!sessionTabs) return;
+
+        // Add mobile navigation arrows
+        const mobileNav = document.createElement('div');
+        mobileNav.className = 'mobile-nav';
+        mobileNav.innerHTML = `
+            <button class="nav-btn prev-btn" id="prevSessionBtn">‹</button>
+            <button class="nav-btn next-btn" id="nextSessionBtn">›</button>
+        `;
+        
+        const tabControls = sessionTabs.querySelector('.tab-controls');
+        if (tabControls) {
+            tabControls.appendChild(mobileNav);
+        }
+
+        // Add event listeners
+        document.getElementById('prevSessionBtn')?.addEventListener('click', () => {
+            this.switchToAdjacentSession(-1);
+        });
+        
+        document.getElementById('nextSessionBtn')?.addEventListener('click', () => {
+            this.switchToAdjacentSession(1);
+        });
+
+        // Add swipe support
+        this.setupSwipeNavigation();
+    }
+
+    /**
+     * Setup swipe navigation for mobile
+     */
+    setupSwipeNavigation() {
+        let startX = 0;
+        let startY = 0;
+        
+        document.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        });
+        
+        document.addEventListener('touchend', (e) => {
+            if (!startX || !startY) return;
+            
+            const endX = e.changedTouches[0].clientX;
+            const endY = e.changedTouches[0].clientY;
+            
+            const diffX = startX - endX;
+            const diffY = startY - endY;
+            
+            // Only handle horizontal swipes (more horizontal than vertical)
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+                if (diffX > 0) {
+                    // Swipe left - next session
+                    this.switchToAdjacentSession(1);
+                } else {
+                    // Swipe right - previous session
+                    this.switchToAdjacentSession(-1);
+                }
+            }
+            
+            startX = 0;
+            startY = 0;
+        });
+    }
+
+    /**
+     * Switch to adjacent session
+     * @param {number} direction - -1 for previous, 1 for next
+     */
+    switchToAdjacentSession(direction) {
+        const sessionIds = Array.from(this.sessions.keys());
+        if (sessionIds.length <= 1) return;
+        
+        const currentIndex = sessionIds.indexOf(this.activeSessionId);
+        if (currentIndex === -1) return;
+        
+        let newIndex = currentIndex + direction;
+        
+        // Wrap around
+        if (newIndex < 0) {
+            newIndex = sessionIds.length - 1;
+        } else if (newIndex >= sessionIds.length) {
+            newIndex = 0;
+        }
+        
+        this.switchToSession(sessionIds[newIndex]);
     }
 
     /**
@@ -270,8 +389,55 @@ class SessionManager {
                 session.inputSection.classList.add('active');
             }
             
+            // Update visible tabs
+            this.updateVisibleTabs();
+            
             console.log(`Switched to session: ${session.name} (${sessionId})`);
         }
+    }
+
+    /**
+     * Update which tabs are visible (current, previous, next)
+     */
+    updateVisibleTabs() {
+        const sessionIds = Array.from(this.sessions.keys());
+        const currentIndex = sessionIds.indexOf(this.activeSessionId);
+        
+        if (currentIndex === -1 || sessionIds.length <= 3) {
+            // Show all tabs if 3 or fewer sessions
+            this.sessions.forEach(session => {
+                session.tab.style.display = 'flex';
+            });
+            return;
+        }
+        
+        // Hide all tabs first
+        this.sessions.forEach(session => {
+            session.tab.style.display = 'none';
+        });
+        
+        // Show current, previous, and next
+        const indicesToShow = [];
+        
+        // Previous session (wrap around)
+        const prevIndex = currentIndex === 0 ? sessionIds.length - 1 : currentIndex - 1;
+        indicesToShow.push(prevIndex);
+        
+        // Current session
+        indicesToShow.push(currentIndex);
+        
+        // Next session (wrap around)
+        const nextIndex = currentIndex === sessionIds.length - 1 ? 0 : currentIndex + 1;
+        indicesToShow.push(nextIndex);
+        
+        // Show the selected tabs
+        indicesToShow.forEach(index => {
+            const sessionId = sessionIds[index];
+            const session = this.sessions.get(sessionId);
+            if (session) {
+                session.tab.style.display = 'flex';
+            }
+        });
     }
 
     /**
