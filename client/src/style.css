@@ -181,6 +181,7 @@ h1 {
 .terminal {
     flex: 1;
     padding: 15px;
+    padding-bottom: 120px; /* Space for sticky input section */
     overflow-y: auto;
     font-size: 14px;
     white-space: pre-wrap;
@@ -701,6 +702,8 @@ button:disabled {
 .session-terminal {
     display: none;
     flex: 1;
+    padding-bottom: 120px; /* Space for sticky input section */
+    overflow-y: auto;
 }
 
 .session-terminal.active {
