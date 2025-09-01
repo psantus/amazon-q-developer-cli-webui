@@ -1,6 +1,8 @@
 /**
  * Manages multiple Q CLI sessions with tab-based UI
  */
+import ApprovalManager from '../ui/ApprovalManager.js';
+
 class SessionManager {
     constructor(mqttManager, uiManager, clientId) {
         this.mqttManager = mqttManager;
@@ -10,6 +12,9 @@ class SessionManager {
         this.activeSessionId = null;
         this.sessionCounter = 0;
         this.projectName = window.AWS_CONFIG.projectName;
+        
+        // Initialize approval manager
+        this.approvalManager = new ApprovalManager();
         
         this.setupEventHandlers();
         this.setupTabInterface();
@@ -759,6 +764,20 @@ class SessionManager {
         session.terminal.appendChild(messageDiv);
         session.terminal.scrollTop = session.terminal.scrollHeight;
         
+        // Check for approval prompts in bot messages
+        if (type === 'bot') {
+            const approvalInfo = this.approvalManager.detectApprovalPrompt(message);
+            if (approvalInfo) {
+                // Show approval UI
+                this.approvalManager.showApproval(approvalInfo.message, (response) => {
+                    this.handleApprovalResponse(sessionId, response);
+                });
+                
+                // Don't increment unread count for approval prompts
+                return;
+            }
+        }
+        
         // Increment unread count for Q CLI responses (bot messages) if session is not active
         if (type === 'bot') {
             this.incrementUnreadCount(sessionId);
@@ -908,6 +927,28 @@ class SessionManager {
             console.error('❌ Failed to remove session from storage:', error);
         }
     }
+
+    /**
+     * Handle approval response
+     * @param {string} sessionId - Session ID
+     * @param {string} response - 'y', 'n', or 't'
+     */
+    handleApprovalResponse(sessionId, response) {
+        const session = this.sessions.get(sessionId);
+        if (!session) return;
+        
+        console.log(`📤 Sending approval response: ${response} for session ${sessionId}`);
+        
+        // Send the approval response to the Q CLI session
+        this.mqttManager.sendMessage(`q-cli/${this.clientId}/sessions/${sessionId}/input`, {
+            input: response,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Add the response to the terminal as a user message
+        this.addToSessionTerminal(sessionId, response, 'user');
+    }
+
     clearSessionTerminal(sessionId) {
         const session = this.sessions.get(sessionId);
         if (session) {
