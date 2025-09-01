@@ -19,6 +19,10 @@ A modern, web-based interface for Amazon Q CLI that provides real-time MQTT comm
 - 📱 **Responsive Design** - Works seamlessly on desktop and mobile
 - 🔄 **Auto-Deploy** - Terraform handles builds and deployments automatically
 
+## Screenshot
+
+![Q Developer WebUI screenshot](Screenshot.png "Q Developer WebUI screenshot")
+
 ## 🚀 Quick Start
 
 Deploy everything with just 3 commands:
