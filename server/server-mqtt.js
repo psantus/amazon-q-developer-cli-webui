@@ -2,6 +2,7 @@ const awsIot = require('aws-iot-device-sdk');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const FilesystemHandler = require('./filesystem-handler');
 require('dotenv').config();
 
 class QCliMqttServer {
@@ -13,7 +14,19 @@ class QCliMqttServer {
         this.region = process.env.AWS_REGION || 'us-east-1';
         this.isConnected = false;
         
+        // Initialize filesystem handler
+        this.filesystemHandler = new FilesystemHandler(this);
+        
         this.initializeDevice();
+        
+        // Add process error handlers
+        process.on('unhandledRejection', (reason, promise) => {
+            console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+        });
+        
+        process.on('uncaughtException', (error) => {
+            console.error('❌ Uncaught Exception:', error);
+        });
     }
 
     initializeDevice() {
@@ -53,6 +66,7 @@ class QCliMqttServer {
             
             // Subscribe to control topic (single per server) and session-specific input topics
             const controlTopic = `${this.projectName}/server/+/control`;
+            const sessionControlTopic = `${this.projectName}/server/+/+/control`; // clientId/sessionId/control
             const inputTopic = `${this.projectName}/server/+/+/input`; // clientId/sessionId/input
             
             console.log('📡 Subscribing to topics...');
@@ -62,6 +76,14 @@ class QCliMqttServer {
                     console.error(`❌ Failed to subscribe to ${controlTopic}:`, error);
                 } else {
                     console.log(`✅ Subscribed to ${controlTopic}`);
+                }
+            });
+            
+            this.device.subscribe(sessionControlTopic, { qos: 0 }, (error) => {
+                if (error) {
+                    console.error(`❌ Failed to subscribe to ${sessionControlTopic}:`, error);
+                } else {
+                    console.log(`✅ Subscribed to ${sessionControlTopic}`);
                 }
             });
             
@@ -88,13 +110,25 @@ class QCliMqttServer {
                 console.log(`🔍 DEBUG: Topic parts: [${topicParts.join(', ')}]`);
                 
                 if (topicParts[topicParts.length - 1] === 'control') {
-                    // Control message: projectName/server/clientId/control
-                    if (topicParts.length !== 4) {
+                    // Control message: projectName/server/clientId/control OR projectName/server/clientId/sessionId/control
+                    if (topicParts.length === 4) {
+                        // Global control: projectName/server/clientId/control
+                        const clientId = topicParts[2];
+                        this.handleControlMessage(clientId, message).catch(error => {
+                            console.error('❌ Error handling control message:', error);
+                        });
+                    } else if (topicParts.length === 5) {
+                        // Session control: projectName/server/clientId/sessionId/control
+                        const clientId = topicParts[2];
+                        const sessionId = topicParts[3];
+                        message.sessionId = sessionId; // Add sessionId to message
+                        this.handleControlMessage(clientId, message).catch(error => {
+                            console.error('❌ Error handling control message:', error);
+                        });
+                    } else {
                         console.log(`⚠️ Invalid control topic format: ${topic}`);
                         return;
                     }
-                    const clientId = topicParts[2];
-                    this.handleControlMessage(clientId, message);
                 } else if (topicParts[topicParts.length - 1] === 'input') {
                     // Input message: projectName/server/clientId/sessionId/input
                     if (topicParts.length !== 5) {
@@ -124,11 +158,38 @@ class QCliMqttServer {
         });
     }
 
-    handleControlMessage(clientId, message) {
-        console.log(`🎮 Control: ${message.action} for client ${clientId}`);
+    async handleControlMessage(clientId, message) {
+        console.log(`🎮 Control: ${message.action || message.type} for client ${clientId}`);
         console.log(`📊 Current sessions: ${this.sessions.size}`);
         console.log(`📊 Active sessions:`, Array.from(this.sessions.keys()));
         
+        // Handle filesystem requests
+        if (message.type && ['browse', 'read'].includes(message.type)) {
+            try {
+                console.log(`🔍 Processing filesystem request: ${message.type}`);
+                const response = await this.filesystemHandler.handleControlMessage(message, message.sessionId, clientId);
+                console.log(`🔍 Filesystem response type: ${response.type}, files: ${response.files ? response.files.length : 'N/A'}`);
+                
+                this.publishToClient(clientId, message.sessionId || 'default', 'output', {
+                    type: 'filesystem',
+                    data: response
+                });
+                console.log(`✅ Filesystem response published successfully`);
+                return;
+            } catch (error) {
+                console.error('❌ Filesystem error:', error);
+                this.publishToClient(clientId, message.sessionId || 'default', 'output', {
+                    type: 'filesystem',
+                    data: {
+                        type: 'error',
+                        message: error.message
+                    }
+                });
+                return;
+            }
+        }
+        
+        // Handle session control
         switch (message.action) {
             case 'start-session':
                 this.startQChatSession(clientId, message.sessionId, message.workingDir);
@@ -137,7 +198,7 @@ class QCliMqttServer {
                 this.stopQChatSession(clientId, message.sessionId);
                 break;
             default:
-                console.log(`❓ Unknown control action: ${message.action}`);
+                console.log(`❓ Unknown control action: ${message.action || message.type}`);
         }
     }
 
@@ -453,6 +514,9 @@ class QCliMqttServer {
         
         const topic = `${this.projectName}/client/${clientId}/${sessionId}/${messageType}`;
         const message = JSON.stringify(data);
+        
+        console.log(`🔍 Publishing to topic: ${topic}`);
+        console.log(`🔍 Message size: ${message.length} bytes`);
         
         this.device.publish(topic, message, { qos: 0 }, (error) => {
             if (error) {

@@ -13,7 +13,8 @@
     "amazon-cognito-identity-js": "^6.3.12",
     "aws-iot-device-sdk": "^2.2.15",
     "aws-iot-device-sdk-v2": "^1.23.0",
-    "aws-sdk": "^2.1563.0"
+    "aws-sdk": "^2.1563.0",
+    "prismjs": "^1.30.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.3",

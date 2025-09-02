@@ -2,6 +2,14 @@
  * Manages multiple Q CLI sessions with tab-based UI
  */
 import ApprovalManager from '../ui/ApprovalManager.js';
+import FileBrowser from '../ui/FileBrowser.js';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-python';
 
 class SessionManager {
     constructor(mqttManager, uiManager, clientId) {
@@ -15,6 +23,9 @@ class SessionManager {
         
         // Initialize approval manager
         this.approvalManager = new ApprovalManager();
+        
+        // Initialize file browser lazily
+        this.fileBrowser = null;
         
         this.setupEventHandlers();
         this.setupTabInterface();
@@ -290,7 +301,7 @@ class SessionManager {
         const session = {
             id: sessionId,
             name: sessionName,
-            workingDir: workingDir || '',
+            workingDir: workingDir || '', // Empty string = server decides
             isActive: false,
             isRunning: false,
             unreadCount: 0,
@@ -371,16 +382,19 @@ class SessionManager {
             <div class="input-controls">
                 <button class="btn primary" id="sendBtn-${sessionId}">Send</button>
                 <button class="btn secondary" id="clearInputBtn-${sessionId}">Clear Input</button>
+                <button class="btn secondary" id="browseBtn-${sessionId}">Browse Files</button>
             </div>
         `;
 
         // Add event listeners
         const sendBtn = inputSection.querySelector(`#sendBtn-${sessionId}`);
         const clearInputBtn = inputSection.querySelector(`#clearInputBtn-${sessionId}`);
+        const browseBtn = inputSection.querySelector(`#browseBtn-${sessionId}`);
         const userInput = inputSection.querySelector(`#userInput-${sessionId}`);
 
         sendBtn.addEventListener('click', () => this.sendSessionInput(sessionId));
         clearInputBtn.addEventListener('click', () => this.clearSessionInput(sessionId));
+        browseBtn.addEventListener('click', () => this.showFileBrowser(sessionId));
         
         userInput.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -441,7 +455,9 @@ class SessionManager {
         // Hide all sessions and deactivate tabs
         this.sessions.forEach((session, id) => {
             session.terminal.classList.remove('active');
-            session.inputSection.classList.remove('active');
+            if (session.inputSection) {
+                session.inputSection.classList.remove('active');
+            }
             session.tab.classList.remove('active');
             session.isActive = false;
         });
@@ -458,8 +474,8 @@ class SessionManager {
             
             this.activeSessionId = sessionId;
             
-            // Show input section only if session is running
-            if (session.isRunning) {
+            // Show input section only if session is running and not a file viewer
+            if (session.isRunning && session.type !== 'file') {
                 session.inputSection.classList.add('active');
             }
             
@@ -709,6 +725,13 @@ class SessionManager {
     handleSessionOutput(sessionId, data) {
         console.log(`🖥️ Handling output for session: ${sessionId}`, data);
         
+        // Check if this is a filesystem response
+        if (data.type === 'filesystem') {
+            this.handleFilesystemResponse(sessionId, data.data);
+            return;
+        }
+        
+        // Handle regular Q CLI output
         const content = data.content || data.data || JSON.stringify(data);
         this.addToSessionTerminal(sessionId, content, 'bot');
     }
@@ -965,6 +988,258 @@ class SessionManager {
             console.error(`Failed to send approval response for session ${sessionId}:`, error);
             this.addToSessionTerminal(sessionId, `❌ Failed to send approval: ${error.message}`, 'error');
         }
+    }
+
+    /**
+     * Send control message to server
+     * @param {string} sessionId - Session ID
+     * @param {Object} message - Control message
+     */
+    async sendControlMessage(sessionId, message) {
+        try {
+            // Use client control topic (not session-specific for filesystem)
+            const topic = `${this.projectName}/server/${this.clientId}/control`;
+            
+            // Add session ID to message payload instead of topic
+            message.sessionId = sessionId;
+            
+            await this.mqttManager.publish(topic, message);
+            console.log(`📤 Control message sent for session ${sessionId}:`, message);
+        } catch (error) {
+            console.error(`Failed to send control message for session ${sessionId}:`, error);
+        }
+    }
+
+    /**
+     * Show file browser for session
+     * @param {string} sessionId - Session ID
+     */
+    showFileBrowser(sessionId) {
+        // Initialize file browser on first use
+        if (!this.fileBrowser) {
+            this.fileBrowser = new FileBrowser(this);
+        }
+        
+        this.fileBrowser.show(sessionId, (file) => {
+            console.log('🔍 File browser callback called with:', file);
+            // Create a new file viewer tab
+            this.createFileViewerTab(file, sessionId);
+        });
+    }
+
+    /**
+     * Handle filesystem response
+     * @param {string} sessionId - Session ID
+     * @param {Object} data - Filesystem data
+     */
+    handleFilesystemResponse(sessionId, data) {
+        if (!this.fileBrowser) return; // No file browser initialized yet
+        
+        if (data.type === 'browse' && data.files) {
+            this.fileBrowser.updateFileList(data.files, data.path, data.workingDir);
+        } else if (data.type === 'file' && data.content) {
+            // Handle file content response - find the file viewer tab
+            this.handleFileContentResponse(data);
+        } else if (data.type === 'error') {
+            console.error('Filesystem error:', data.message);
+            this.addToSessionTerminal(sessionId, `❌ Filesystem error: ${data.message}`, 'error');
+        }
+    }
+
+    /**
+     * Create a new file viewer tab
+     * @param {Object} file - File object with name, path, etc.
+     * @param {string} sourceSessionId - Session ID that opened the file
+     */
+    createFileViewerTab(file, sourceSessionId) {
+        const fileViewerId = `file-${++this.sessionCounter}`;
+        const fileName = file.name;
+        
+        // Create file viewer object (similar to session)
+        const fileViewer = {
+            id: fileViewerId,
+            name: `📄 ${fileName}`,
+            type: 'file',
+            filePath: file.path,
+            sourceSessionId: sourceSessionId,
+            isActive: false,
+            isLoading: true,
+            content: null
+        };
+        
+        this.sessions.set(fileViewerId, fileViewer);
+        
+        // Create tab and terminal for file viewer
+        fileViewer.tab = this.createSessionTab(fileViewerId, fileViewer.name);
+        fileViewer.terminal = this.createSessionTerminal(fileViewerId);
+        
+        // Add loading message to file viewer terminal
+        const terminal = fileViewer.terminal;
+        terminal.innerHTML = '<div class="loading-message">📄 Loading file content...</div>';
+        
+        // For file viewers, don't create input section
+        if (fileViewer.type !== 'file') {
+            fileViewer.inputSection = this.createSessionInput(fileViewerId);
+        }
+        
+        this.switchToSession(fileViewerId);
+        
+        // Send read request to server
+        const message = {
+            type: 'read',
+            path: file.path,
+            timestamp: new Date().toISOString(),
+            sessionId: sourceSessionId // Use source session for server communication
+        };
+        
+        this.sendControlMessage(sourceSessionId, message);
+        console.log('🔍 Created file viewer tab and sent read request for:', file.path);
+    }
+
+    /**
+     * Handle file content response from server
+     * @param {Object} data - File content data
+     */
+    handleFileContentResponse(data) {
+        // Find the file viewer tab that matches this file path
+        for (const [sessionId, session] of this.sessions) {
+            if (session.type === 'file' && session.filePath === data.path) {
+                session.content = data.content;
+                session.isLoading = false;
+                
+                // Update the file viewer display
+                this.displayFileContent(sessionId, data);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Display file content in the file viewer tab
+     * @param {string} fileViewerId - File viewer ID
+     * @param {Object} data - File content data
+     */
+    displayFileContent(fileViewerId, data) {
+        const terminal = document.getElementById(`terminal-${fileViewerId}`);
+        if (!terminal) return;
+        
+        // Get file extension for syntax highlighting
+        const extension = data.path.split('.').pop().toLowerCase();
+        const language = this.getPrismLanguage(extension);
+        
+        // Add line numbers manually and use Prism for highlighting
+        const lines = data.content.split('\n');
+        const numberedContent = lines.map((line, index) => {
+            const lineNumber = (index + 1).toString().padStart(4, ' ');
+            return `<span class="line-number">${lineNumber}</span><span class="line-content">${this.escapeHtml(line)}</span>`;
+        }).join('\n');
+        
+        // Clear loading message and display file content
+        terminal.innerHTML = `
+            <div class="file-metadata-bar">
+                <span class="file-path">📄 ${data.path}</span>
+                <span class="file-stats">${data.size} bytes • ${new Date(data.modified).toLocaleString()}</span>
+            </div>
+            <pre class="prism-code language-${language}"><code>${numberedContent}</code></pre>
+        `;
+        
+        // Apply Prism highlighting to each line content
+        const lineContents = terminal.querySelectorAll('.line-content');
+        lineContents.forEach(lineContent => {
+            const highlighted = Prism.highlight(lineContent.textContent, Prism.languages[language] || Prism.languages.javascript, language);
+            lineContent.innerHTML = highlighted;
+        });
+    }
+
+    /**
+     * Get Prism language from file extension
+     * @param {string} extension - File extension
+     * @returns {string} Prism language identifier
+     */
+    getPrismLanguage(extension) {
+        const languageMap = {
+            'js': 'javascript',
+            'ts': 'typescript',
+            'py': 'python',
+            'css': 'css',
+            'html': 'html',
+            'json': 'json',
+            'md': 'markdown',
+            'sh': 'bash',
+            'bash': 'bash'
+        };
+        return languageMap[extension] || 'javascript';
+    }
+
+    /**
+     * Apply basic syntax highlighting to a line of code
+     * @param {string} line - Line of code
+     * @param {string} language - Programming language
+     * @returns {string} HTML with syntax highlighting
+     */
+    highlightSyntax(line, language) {
+        // First escape HTML
+        let highlighted = this.escapeHtml(line);
+        
+        if (language === 'javascript' || language === 'typescript') {
+            // Keywords - use word boundaries to avoid conflicts
+            highlighted = highlighted.replace(/\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|finally)\b/g, '<span class="keyword">$1</span>');
+            // Strings - be more careful with quotes
+            highlighted = highlighted.replace(/('([^'\\]|\\.)*')/g, '<span class="string">$1</span>');
+            highlighted = highlighted.replace(/("([^"\\]|\\.)*")/g, '<span class="string">$1</span>');
+            highlighted = highlighted.replace(/(`([^`\\]|\\.)*`)/g, '<span class="string">$1</span>');
+            // Comments
+            highlighted = highlighted.replace(/(\/\/.*$)/g, '<span class="comment">$1</span>');
+        } else if (language === 'json') {
+            // JSON strings
+            highlighted = highlighted.replace(/("([^"\\]|\\.)*")/g, '<span class="string">$1</span>');
+            // JSON values
+            highlighted = highlighted.replace(/:\s*(true|false|null|\d+)/g, ': <span class="keyword">$1</span>');
+        }
+        
+        return highlighted;
+    }
+
+    /**
+     * Get programming language from file extension
+     * @param {string} extension - File extension
+     * @returns {string} Language identifier for syntax highlighting
+     */
+    getLanguageFromExtension(extension) {
+        const languageMap = {
+            'js': 'javascript',
+            'ts': 'typescript', 
+            'py': 'python',
+            'java': 'java',
+            'cpp': 'cpp',
+            'c': 'c',
+            'css': 'css',
+            'html': 'html',
+            'xml': 'xml',
+            'json': 'json',
+            'md': 'markdown',
+            'sh': 'bash',
+            'yml': 'yaml',
+            'yaml': 'yaml',
+            'sql': 'sql',
+            'php': 'php',
+            'rb': 'ruby',
+            'go': 'go',
+            'rs': 'rust',
+            'tf': 'hcl'
+        };
+        return languageMap[extension] || 'plaintext';
+    }
+
+    /**
+     * Escape HTML characters
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     clearSessionTerminal(sessionId) {
