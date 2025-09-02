@@ -788,8 +788,8 @@ button:disabled {
     padding: 1rem;
     margin: 1rem 0;
     position: sticky;
-    bottom: 80px;
-    z-index: 99;
+    bottom: 140px;
+    z-index: 101;
 }
 
 .approval-section.active {

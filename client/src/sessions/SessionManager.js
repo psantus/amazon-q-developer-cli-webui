@@ -766,15 +766,19 @@ class SessionManager {
         
         // Check for approval prompts in bot messages
         if (type === 'bot') {
-            const approvalInfo = this.approvalManager.detectApprovalPrompt(message);
-            if (approvalInfo) {
-                // Show approval UI
-                this.approvalManager.showApproval(approvalInfo.message, (response) => {
-                    this.handleApprovalResponse(sessionId, response);
-                });
-                
-                // Don't increment unread count for approval prompts
-                return;
+            try {
+                const approvalInfo = this.approvalManager.detectApprovalPrompt(content);
+                if (approvalInfo) {
+                    // Show approval UI
+                    this.approvalManager.showApproval(approvalInfo.message, (response) => {
+                        this.handleApprovalResponse(sessionId, response);
+                    });
+                    
+                    // Don't increment unread count for approval prompts
+                    return;
+                }
+            } catch (error) {
+                console.error('Error detecting approval prompt:', error);
             }
         }
         
@@ -933,20 +937,25 @@ class SessionManager {
      * @param {string} sessionId - Session ID
      * @param {string} response - 'y', 'n', or 't'
      */
-    handleApprovalResponse(sessionId, response) {
+    async handleApprovalResponse(sessionId, response) {
         const session = this.sessions.get(sessionId);
         if (!session) return;
         
         console.log(`📤 Sending approval response: ${response} for session ${sessionId}`);
         
-        // Send the approval response to the Q CLI session
-        this.mqttManager.sendMessage(`q-cli/${this.clientId}/sessions/${sessionId}/input`, {
-            input: response,
-            timestamp: new Date().toISOString()
-        });
-        
-        // Add the response to the terminal as a user message
-        this.addToSessionTerminal(sessionId, response, 'user');
+        try {
+            // Use same topic pattern as regular input
+            const topic = `${this.projectName}/server/${this.clientId}/${sessionId}/input`;
+            const message = { data: response };
+            
+            await this.mqttManager.publish(topic, message);
+            
+            // Add the response to the terminal as a user message
+            this.addToSessionTerminal(sessionId, response, 'user');
+        } catch (error) {
+            console.error(`Failed to send approval response for session ${sessionId}:`, error);
+            this.addToSessionTerminal(sessionId, `❌ Failed to send approval: ${error.message}`, 'error');
+        }
     }
 
     clearSessionTerminal(sessionId) {
