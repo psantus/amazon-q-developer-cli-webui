@@ -258,6 +258,36 @@ h1 {
     margin-bottom: 0;
 }
 
+/* Terminal message styles with colored borders */
+.terminal-message {
+    margin-bottom: 4px;
+    padding: 8px 12px;
+    border-left: 4px solid transparent;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    line-height: 1.2;
+}
+
+.terminal-message.user {
+    border-left-color: #28a745;
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+.terminal-message.bot {
+    border-left-color: #1e3a8a;
+    background-color: rgba(30, 58, 138, 0.1);
+}
+
+.terminal-message.system {
+    border-left-color: #6c757d;
+    background-color: rgba(108, 117, 125, 0.1);
+}
+
+.terminal-message.error {
+    border-left-color: #dc3545;
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
 /* Select Interface Styles */
 .select-interface {
     background: #1a1a1a;

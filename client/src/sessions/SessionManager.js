@@ -594,6 +594,9 @@ class SessionManager {
             const message = { data: input };
 
             await this.mqttManager.publish(topic, message);
+            
+            // Add blank line before user input for readability
+            this.addToSessionTerminal(sessionId, '', 'system');
             this.addToSessionTerminal(sessionId, `> ${input}`, 'user');
             
             userInput.value = '';
@@ -762,7 +765,13 @@ class SessionManager {
         messageDiv.textContent = content;
         
         session.terminal.appendChild(messageDiv);
-        session.terminal.scrollTop = session.terminal.scrollHeight;
+        
+        // Scroll the new message into view with margin for sticky input
+        setTimeout(() => {
+            messageDiv.scrollIntoView({ behavior: 'instant', block: 'end' });
+            // Add extra scroll to account for sticky input section (177px)
+            session.terminal.scrollTop += 400;
+        }, 10);
         
         // Check for approval prompts in bot messages
         if (type === 'bot') {
