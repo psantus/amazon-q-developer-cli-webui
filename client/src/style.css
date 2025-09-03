@@ -189,6 +189,7 @@ h1 {
     background-color: #000;
     color: #ffffff;
     min-height: 400px;
+    max-height: 60vh;
 }
 
 /* Preserve ANSI colors and formatting */
@@ -837,11 +838,13 @@ button:disabled {
     flex: 1;
     padding-bottom: 120px; /* Space for sticky input section */
     overflow-y: auto;
+    min-height: 0; /* Allow flex shrinking */
 }
 
 .session-terminal.active {
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Allow flex shrinking */
 }
 
 .session-input {

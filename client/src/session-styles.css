@@ -112,10 +112,30 @@
     line-height: 1.4;
     padding: 1rem;
     border-radius: 4px;
-    height: 400px;
+    flex: 1;
     overflow-y: auto;
     white-space: pre-wrap;
     word-wrap: break-word;
+    min-height: 400px;
+    max-height: 60vh;
+}
+
+/* Custom scrollbar for session terminals */
+.session-terminal::-webkit-scrollbar {
+    width: 8px;
+}
+
+.session-terminal::-webkit-scrollbar-track {
+    background: #2a2a2a;
+}
+
+.session-terminal::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.session-terminal::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 /* Session Input Styles - Ensure Full Width */
