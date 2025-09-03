@@ -72,6 +72,11 @@ class UIManager {
             }
         });
         
+        // Auto-resize textarea
+        this.elements.userInput?.addEventListener('input', (e) => {
+            this.autoResizeTextarea(e.target);
+        });
+        
         // Close modal when clicking outside (only if authenticated)
         this.elements.loginModal?.addEventListener('click', (e) => {
             if (e.target === this.elements.loginModal) {
@@ -120,7 +125,7 @@ class UIManager {
             this.elements.loginBtn.style.display = 'none';
         }
         if (this.elements.logoutBtn) {
-            this.elements.logoutBtn.style.display = 'inline-block';
+            this.elements.logoutBtn.style.display = 'inline-flex';
         }
     }
 
@@ -129,7 +134,9 @@ class UIManager {
      */
     showLoginButton() {
         if (this.elements.loginBtn) {
-            this.elements.loginBtn.style.display = 'inline-block';
+            this.elements.loginBtn.style.display = 'inline-flex';
+            this.elements.loginBtn.innerHTML = '<span class="material-icons">login</span>';
+            this.elements.loginBtn.title = 'Login';
         }
         if (this.elements.logoutBtn) {
             this.elements.logoutBtn.style.display = 'none';
@@ -306,6 +313,15 @@ class UIManager {
                 }
             });
         }
+    }
+
+    /**
+     * Auto-resize textarea based on content
+     * @param {HTMLTextAreaElement} textarea - Textarea element
+     */
+    autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     }
 
     /**

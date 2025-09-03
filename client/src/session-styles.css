@@ -29,7 +29,6 @@
 /* Ensure tab container doesn't clip badges */
 .tab-list {
     overflow: visible;
-    padding-top: 8px;
 }
 
 .session-tabs {
@@ -172,11 +171,48 @@
     box-shadow: 0 0 5px rgba(255, 149, 0, 0.3);
 }
 
-.session-input .input-controls {
+.session-input .chat-input-container {
+    position: relative;
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
-    justify-content: flex-start;
+    align-items: flex-end;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 8px 120px 8px 12px;
+}
+
+.session-input .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+    min-height: 20px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.session-input .chat-buttons {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 4px;
+}
+
+.session-input .chat-buttons .btn {
+    height: 28px;
+    min-width: 28px;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.session-input .chat-buttons .btn .material-icons {
+    font-size: 16px;
 }
 
 .session-input .prompt-indicator {

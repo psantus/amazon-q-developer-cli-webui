@@ -107,8 +107,8 @@ class SessionManager {
         const mobileNav = document.createElement('div');
         mobileNav.className = 'mobile-nav';
         mobileNav.innerHTML = `
-            <button class="nav-btn prev-btn" id="prevSessionBtn">‹</button>
-            <button class="nav-btn next-btn" id="nextSessionBtn">›</button>
+            <button class="nav-btn prev-btn" id="prevSessionBtn" title="Previous Session"><span class="material-icons">chevron_left</span></button>
+            <button class="nav-btn next-btn" id="nextSessionBtn" title="Next Session"><span class="material-icons">chevron_right</span></button>
         `;
         
         const tabControls = sessionTabs.querySelector('.tab-controls');
@@ -207,8 +207,8 @@ class SessionManager {
                     <input type="text" id="workingDir" placeholder="/absolute/path or ./relative/path">
                 </div>
                 <div class="form-actions">
-                    <button class="btn primary" id="createSession">Create Session</button>
-                    <button class="btn secondary" id="cancelSession">Cancel</button>
+                    <button class="btn primary" id="createSession" title="Create Session"><span class="material-icons">add</span></button>
+                    <button class="btn secondary" id="cancelSession" title="Cancel"><span class="material-icons">cancel</span></button>
                 </div>
             </div>
         `;
@@ -336,7 +336,7 @@ class SessionManager {
         tab.innerHTML = `
             <span>${sessionName}</span>
             <span class="notification-badge">0</span>
-            <button class="close-btn" onclick="event.stopPropagation()">×</button>
+            <button class="close-btn" onclick="event.stopPropagation()" title="Close Session"><span class="material-icons">close</span></button>
         `;
         
         tab.addEventListener('click', () => this.switchToSession(sessionId));
@@ -378,11 +378,13 @@ class SessionManager {
         
         inputSection.innerHTML = `
             <div class="prompt-indicator" id="promptIndicator-${sessionId}"></div>
-            <textarea class="user-input" id="userInput-${sessionId}" placeholder="Type your response here..." rows="3"></textarea>
-            <div class="input-controls">
-                <button class="btn primary" id="sendBtn-${sessionId}">Send</button>
-                <button class="btn secondary" id="clearInputBtn-${sessionId}">Clear Input</button>
-                <button class="btn secondary" id="browseBtn-${sessionId}">Browse Files</button>
+            <div class="chat-input-container">
+                <textarea class="chat-input" id="userInput-${sessionId}" placeholder="Type your response here..." rows="1"></textarea>
+                <div class="chat-buttons">
+                    <button class="btn primary" id="sendBtn-${sessionId}" title="Send"><span class="material-icons">send</span></button>
+                    <button class="btn secondary" id="clearInputBtn-${sessionId}" title="Clear Input"><span class="material-icons">clear</span></button>
+                    <button class="btn secondary" id="browseBtn-${sessionId}" title="Browse Files"><span class="material-icons">folder_open</span></button>
+                </div>
             </div>
         `;
 
@@ -401,6 +403,11 @@ class SessionManager {
                 e.preventDefault();
                 this.sendSessionInput(sessionId);
             }
+        });
+        
+        // Auto-resize textarea
+        userInput.addEventListener('input', (e) => {
+            this.autoResizeTextarea(e.target);
         });
 
         sessionContent.appendChild(inputSection);
@@ -641,21 +648,25 @@ class SessionManager {
         const session = this.sessions.get(sessionId);
         if (!session) return;
 
-        // Stop the session first if running
-        if (session.isRunning) {
+        // Stop the session first if running (only for regular sessions, not file viewers)
+        if (session.isRunning && session.type !== 'file') {
             await this.stopSession(sessionId);
         }
 
         // Remove UI elements
         session.terminal.remove();
-        session.inputSection.remove();
+        if (session.inputSection) {
+            session.inputSection.remove();
+        }
         session.tab.remove();
 
         // Remove from sessions map
         this.sessions.delete(sessionId);
         
-        // Remove from localStorage
-        this.removeSessionFromStorage(sessionId);
+        // Remove from localStorage (only for regular sessions)
+        if (session.type !== 'file') {
+            this.removeSessionFromStorage(sessionId);
+        }
 
         // Switch to another session if this was active
         if (this.activeSessionId === sessionId) {
@@ -1198,6 +1209,15 @@ class SessionManager {
         }
         
         return highlighted;
+    }
+
+    /**
+     * Auto-resize textarea based on content
+     * @param {HTMLTextAreaElement} textarea - Textarea element
+     */
+    autoResizeTextarea(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     }
 
     /**

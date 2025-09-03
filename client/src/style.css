@@ -133,21 +133,73 @@ header {
     border-bottom: 1px solid #333;
 }
 
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.controls .btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 6px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.controls .btn .material-icons {
+    font-size: 18px;
+}
+
+/* General button icon styling */
+.btn .material-icons {
+    font-size: 18px;
+}
+
+.btn.small .material-icons {
+    font-size: 16px;
+}
+
+/* Navigation button icons */
+.nav-btn .material-icons {
+    font-size: 20px;
+}
+
+/* Close button icons */
+.close-btn .material-icons {
+    font-size: 14px;
+}
+
 h1 {
     color: #ff9500;
     font-size: 24px;
+    margin: 0;
 }
 
 .status {
-    padding: 5px 15px;
-    border-radius: 15px;
-    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 11px;
     font-weight: bold;
+    white-space: nowrap;
 }
 
 .status.connected {
     background-color: #28a745;
     color: white;
+}
+
+.status.connecting {
+    background-color: #ffc107;
+    color: #000;
 }
 
 .status.disconnected {
@@ -504,10 +556,48 @@ h1 {
     box-shadow: 0 0 5px rgba(255, 149, 0, 0.3);
 }
 
-.input-controls {
+.chat-input-container {
+    position: relative;
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
+    align-items: flex-end;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 8px 80px 8px 12px;
+}
+
+.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+    min-height: 20px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.chat-buttons {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    gap: 4px;
+}
+
+.chat-buttons .btn {
+    height: 28px;
+    min-width: 28px;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.chat-buttons .btn .material-icons {
+    font-size: 16px;
 }
 
 button {
@@ -707,6 +797,17 @@ button:disabled {
     gap: 0.5rem;
     flex-shrink: 0;
     min-width: fit-content;
+    align-items: center;
+}
+
+.tab-controls .btn.small {
+    height: 32px;
+    min-width: 32px;
+    padding: 6px;
+}
+
+.tab-controls .btn.small .material-icons {
+    font-size: 18px;
 }
 
 .tab-list {

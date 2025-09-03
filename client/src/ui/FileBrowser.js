@@ -19,16 +19,16 @@ export default class FileBrowser {
             <div class="modal-content">
                 <div class="modal-header">
                     <h3>File Browser</h3>
-                    <button id="closeBrowser" class="btn secondary">×</button>
+                    <button id="closeBrowser" class="btn secondary" title="Close"><span class="material-icons">close</span></button>
                 </div>
                 <div class="file-browser-toolbar">
                     <span id="currentPath">/</span>
-                    <button id="refreshFiles" class="btn secondary">Refresh</button>
+                    <button id="refreshFiles" class="btn secondary" title="Refresh"><span class="material-icons">refresh</span></button>
                 </div>
                 <div id="fileList" class="file-list"></div>
                 <div class="modal-footer">
-                    <button id="selectFile" class="btn primary" disabled>Select File</button>
-                    <button id="cancelBrowser" class="btn secondary">Cancel</button>
+                    <button id="selectFile" class="btn primary" disabled title="Select File"><span class="material-icons">check</span></button>
+                    <button id="cancelBrowser" class="btn secondary" title="Cancel"><span class="material-icons">cancel</span></button>
                 </div>
             </div>
         `;
@@ -58,6 +58,13 @@ export default class FileBrowser {
         this.modal.addEventListener('click', (e) => {
             if (e.target === this.modal) this.hide();
         });
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.style.display === 'flex') {
+                this.hide();
+            }
+        });
     }
 
     show(sessionId, callback) {
@@ -71,6 +78,13 @@ export default class FileBrowser {
         this.modal.style.display = 'none';
         this.selectedFile = null;
         this.selectBtn.disabled = true;
+        
+        // Clear file list selection
+        this.fileList.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+        
+        // Reset callback
+        this.callback = null;
+        this.sessionId = null;
     }
 
     browse(path) {

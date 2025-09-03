@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amazon Q Developer CLI WebUI (MQTT)</title>
+    <title>Q CLI WebUI</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🤖 Amazon Q Developer CLI WebUI (MQTT)</h1>
+            <h1>🤖 Q CLI WebUI</h1>
             <div class="status-bar">
                 <span id="status" class="status disconnected">Disconnected</span>
                 <div class="controls">
-                    <button id="loginBtn" class="btn primary">Login</button>
-                    <button id="logoutBtn" class="btn secondary" style="display: none;">Logout</button>
-                    <button id="clearBtn" class="btn secondary">Clear Terminal</button>
+                    <button id="loginBtn" class="btn primary"><span class="material-icons">login</span></button>
+                    <button id="logoutBtn" class="btn secondary" style="display: none;" title="Logout"><span class="material-icons">logout</span></button>
+                    <button id="clearBtn" class="btn secondary" title="Clear Terminal"><span class="material-icons">clear_all</span></button>
                 </div>
             </div>
         </header>
@@ -45,7 +46,7 @@
             <!-- Session Tabs -->
             <div id="sessionTabs" class="session-tabs" style="display: none;">
                 <div class="tab-controls">
-                    <button id="newSessionBtn" class="btn primary small">+ New Session</button>
+                    <button id="newSessionBtn" class="btn primary small" title="New Session"><span class="material-icons">add</span></button>
                 </div>
                 <div id="tabList" class="tab-list"></div>
             </div>
@@ -62,9 +63,9 @@
             <div id="approvalSection" class="approval-section">
                 <div id="approvalMessage" class="approval-message"></div>
                 <div class="approval-buttons">
-                    <button id="approvalYes" class="approval-btn yes">Yes (y)</button>
-                    <button id="approvalNo" class="approval-btn no">No (n)</button>
-                    <button id="approvalTrust" class="approval-btn trust">Trust (t)</button>
+                    <button id="approvalYes" class="approval-btn yes" title="Yes (y)"><span class="material-icons">check</span></button>
+                    <button id="approvalNo" class="approval-btn no" title="No (n)"><span class="material-icons">close</span></button>
+                    <button id="approvalTrust" class="approval-btn trust" title="Trust (t)"><span class="material-icons">verified</span></button>
                 </div>
                 <div class="approval-shortcuts">
                     Press Y for Yes, N for No, T for Trust
@@ -74,10 +75,12 @@
             <!-- Default input section (shown when no sessions) -->
             <div id="inputSection" class="input-section" style="display: none;">
                 <div id="promptIndicator" class="prompt-indicator"></div>
-                <textarea id="userInput" class="user-input" placeholder="Type your response here..." rows="3"></textarea>
-                <div class="input-controls">
-                    <button id="sendBtn" class="btn primary" disabled>Send</button>
-                    <button id="clearInputBtn" class="btn secondary">Clear Input</button>
+                <div class="chat-input-container">
+                    <textarea id="userInput" class="chat-input" placeholder="Type your response here..." rows="1"></textarea>
+                    <div class="chat-buttons">
+                        <button id="sendBtn" class="btn primary" disabled title="Send"><span class="material-icons">send</span></button>
+                        <button id="clearInputBtn" class="btn secondary" title="Clear Input"><span class="material-icons">clear</span></button>
+                    </div>
                 </div>
             </div>
         </main>
