@@ -30,3 +30,11 @@ terraform/.terraform.lock.hcl
 
 # AWS
 .aws/
+
+# CRITICAL SECURITY - Certificates and private keys
+server/certs/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
