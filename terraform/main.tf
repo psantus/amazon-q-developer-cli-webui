@@ -238,6 +238,33 @@ resource "aws_iot_certificate" "server_cert" {
   active = true
 }
 
+# Write certificate files to server/certs directory
+resource "local_file" "server_certificate" {
+  content  = aws_iot_certificate.server_cert.certificate_pem
+  filename = "${path.module}/../server/certs/certificate.pem"
+}
+
+resource "local_file" "server_private_key" {
+  content  = aws_iot_certificate.server_cert.private_key
+  filename = "${path.module}/../server/certs/private.key"
+}
+
+resource "local_file" "server_public_key" {
+  content  = aws_iot_certificate.server_cert.public_key
+  filename = "${path.module}/../server/certs/public.key"
+}
+
+# Download Amazon Root CA certificate
+resource "null_resource" "download_root_ca" {
+  provisioner "local-exec" {
+    command = "curl -o ${path.module}/../server/certs/AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+  }
+  
+  triggers = {
+    always_run = timestamp()
+  }
+}
+
 # Associate thing with certificate
 resource "aws_iot_thing_principal_attachment" "server_cert_attachment" {
   thing     = aws_iot_thing.q_cli_server.name

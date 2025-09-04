@@ -68,7 +68,7 @@ terraform apply  # Type 'yes' to confirm
 - ✅ **Client Build**: Webpack build with AWS configuration injection
 - ✅ **S3 Upload**: Deploys client files to S3 bucket
 - ✅ **CloudFront Invalidation**: Clears CDN cache for updates
-- ✅ **Certificate Generation**: Creates IoT certificates and downloads to server
+- ✅ **Certificate Generation**: Creates IoT certificates and writes to server/certs/
 - ✅ **User Creation**: Sets up Cognito user with generated password
 
 ### 3. Access the Application
@@ -148,6 +148,7 @@ The Cognito User Pool is configured with `allow_admin_create_user_only = true` t
 #### Certificate Management
 
 - Server certificates are automatically generated and managed by Terraform
+- Certificate files are automatically written to `server/certs/` directory
 - Certificates are stored securely in the server environment
 - Consider certificate rotation policies for production
 

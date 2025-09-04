@@ -96,7 +96,7 @@ When you run `terraform apply`, it automatically:
 - ✅ **Compiles Web Client** using Webpack with AWS config injection
 - ✅ **Uploads to S3** with proper content types and caching
 - ✅ **Invalidates CloudFront** cache for instant updates
-- ✅ **Generates IoT Certificates** and configures server
+- ✅ **Generates IoT Certificates** and writes to server/certs/
 - ✅ **Creates Cognito User** with secure password
 - ✅ **Outputs Access URLs** and credentials
 
@@ -268,6 +268,25 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **🐛 Issues** - Report bugs via GitHub Issues
 - **💬 Discussions** - Join GitHub Discussions for questions
 - **📧 Contact** - Reach out for enterprise support
+
+### Common Issues
+
+**Server won't connect to IoT Core:**
+```bash
+# Extract certificates from Terraform outputs
+cd terraform
+terraform output -raw server_certificate_pem > ../server/certs/certificate.pem
+terraform output -raw server_private_key > ../server/certs/private.key
+terraform output -raw server_public_key > ../server/certs/public.key
+```
+
+**Missing certificate files:**
+```bash
+# Regenerate certificates
+terraform taint aws_iot_certificate.server_cert
+terraform apply
+# Then extract as above
+```
 
 ---
 
