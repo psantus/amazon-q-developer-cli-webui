@@ -37,6 +37,10 @@ https://github.com/user-attachments/assets/16b91e4b-73cc-4ead-a514-b4ac3e0a9a73
 
 https://github.com/user-attachments/assets/5e526827-3f4c-4588-94ac-1ad986abc9b7
 
+### On mobile
+
+https://github.com/user-attachments/assets/416262f0-311f-43b7-b893-bac21fdcb7d1
+
 ## 🚀 Quick Start
 
 Deploy everything with just 3 commands:

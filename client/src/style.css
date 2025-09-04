@@ -169,13 +169,30 @@ header {
 }
 
 /* Navigation button icons */
+.nav-btn {
+    height: 32px;
+    min-width: 32px;
+    padding: 6px;
+}
+
 .nav-btn .material-icons {
-    font-size: 20px;
+    font-size: 18px;
 }
 
 /* Close button icons */
 .close-btn .material-icons {
     font-size: 14px;
+}
+
+/* Form action buttons */
+.form-actions .btn {
+    height: 32px;
+    min-width: 32px;
+    padding: 6px;
+}
+
+.form-actions .btn .material-icons {
+    font-size: 18px;
 }
 
 h1 {
