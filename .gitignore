@@ -27,6 +27,8 @@ Thumbs.db
 terraform/.terraform/
 terraform/terraform.tfstate*
 terraform/.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
 
 # AWS
 .aws/
