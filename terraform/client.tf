@@ -140,7 +140,7 @@ resource "null_resource" "client_invalidation" {
       aws cloudfront create-invalidation \
         --distribution-id ${aws_cloudfront_distribution.client_ui.id} \
         --paths "/*" \
-        --profile ${var.aws_profile} \
+        --profile $AWS_PROFILE \
         --region ${var.aws_region}
       echo "✅ CloudFront cache invalidated"
     EOT

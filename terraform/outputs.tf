@@ -43,7 +43,7 @@ output "cognito_username" {
 
 output "cognito_password" {
   description = "Cognito user password"
-  value       = random_password.cognito_user_password.result
+  value       = var.cognito_user_password != "" ? var.cognito_user_password : random_password.cognito_user_password[0].result
   sensitive   = true
 }
 
@@ -64,7 +64,7 @@ output "cloudfront_distribution_id" {
 
 output "client_ui_url" {
   description = "Client UI URL"
-  value       = var.domain_name != "" ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.client_ui.domain_name}"
+  value       = var.domain_name != "" ? "https://${local.full_domain}" : "https://${aws_cloudfront_distribution.client_ui.domain_name}"
 }
 
 output "cognito_iot_policy_name" {

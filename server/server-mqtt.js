@@ -11,7 +11,7 @@ class QCliMqttServer {
         this.clientSessions = new Map(); // clientId -> Set of sessionIds
         this.device = null;
         this.projectName = process.env.PROJECT_NAME || 'q-cli-webui';
-        this.region = process.env.AWS_REGION || 'us-east-1';
+        this.region = process.env.AWS_REGION;
         this.isConnected = false;
         
         // Initialize filesystem handler

@@ -4,12 +4,6 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "aws_profile" {
-  description = "AWS profile to use"
-  type        = string
-  default     = "terracloud"
-}
-
 variable "project_name" {
   description = "Project name used for resource naming"
   type        = string
@@ -28,14 +22,21 @@ variable "cognito_user_email" {
   default     = "paul@example.com"
 }
 
+variable "cognito_user_password" {
+  description = "Custom password for Cognito user (optional - random password generated if not provided)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "domain_name" {
-  description = "Custom domain name for CloudFront (optional)"
+  description = "Root domain name (e.g., 'example.com') - must have Route53 hosted zone"
   type        = string
   default     = ""
 }
 
-variable "certificate_arn" {
-  description = "ACM certificate ARN for custom domain (required if domain_name is set)"
+variable "subdomain" {
+  description = "Subdomain for the application (e.g., 'qcli' for qcli.example.com)"
   type        = string
-  default     = ""
+  default     = "qcli"
 }

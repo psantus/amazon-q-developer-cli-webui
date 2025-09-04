@@ -89,10 +89,24 @@ class AuthenticationManager {
      * Clear stored authentication data
      */
     clearStoredAuth() {
+        // Clear our app's auth data
         localStorage.removeItem('qcli_auth');
+        
+        // Clear all Cognito-related localStorage keys
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (key.includes('cognito') || key.includes('aws') || key.includes('CognitoIdentityServiceProvider'))) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        
         this.isAuthenticated = false;
         this.credentials = null;
         this.identityId = null;
+        
+        console.log('🧹 Cleared all authentication data from localStorage');
     }
 
     /**

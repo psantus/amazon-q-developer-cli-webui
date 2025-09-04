@@ -1,23 +1,6 @@
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.1"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-}
-
-# Random password for Cognito user
+# Random password for Cognito user (only if custom password not provided)
 resource "random_password" "cognito_user_password" {
+  count   = var.cognito_user_password == "" ? 1 : 0
   length  = 16
   special = true
 }
@@ -82,7 +65,7 @@ resource "aws_cloudfront_distribution" "client_ui" {
   default_root_object = "index.html"
   comment             = "Q CLI WebUI Distribution"
 
-  aliases = var.domain_name != "" ? [var.domain_name] : []
+  aliases = var.domain_name != "" ? [local.full_domain] : []
 
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
@@ -172,9 +155,9 @@ resource "aws_cloudfront_distribution" "client_ui" {
 
   viewer_certificate {
     cloudfront_default_certificate = var.domain_name == ""
-    acm_certificate_arn           = var.certificate_arn != "" ? var.certificate_arn : null
-    ssl_support_method            = var.certificate_arn != "" ? "sni-only" : null
-    minimum_protocol_version      = var.certificate_arn != "" ? "TLSv1.2_2021" : null
+    acm_certificate_arn           = var.domain_name != "" ? aws_acm_certificate_validation.domain_cert[0].certificate_arn : null
+    ssl_support_method            = var.domain_name != "" ? "sni-only" : null
+    minimum_protocol_version      = var.domain_name != "" ? "TLSv1.2_2021" : null
   }
 
   tags = {
@@ -236,6 +219,16 @@ resource "aws_iot_thing" "q_cli_server" {
 # Server certificate for IoT Core authentication
 resource "aws_iot_certificate" "server_cert" {
   active = true
+}
+
+# Write server environment configuration
+resource "local_file" "server_env" {
+  content = templatefile("${path.module}/server.env.tpl", {
+    iot_endpoint = data.aws_iot_endpoint.iot_endpoint.endpoint_address
+    aws_region   = var.aws_region
+    project_name = var.project_name
+  })
+  filename = "${path.module}/../server/.env"
 }
 
 # Write certificate files to server/certs directory
@@ -377,7 +370,7 @@ resource "aws_cognito_user_pool_client" "q_cli_client" {
   allowed_oauth_flows                  = ["code", "implicit"]
   allowed_oauth_scopes                 = ["email", "openid", "profile"]
   callback_urls                        = [
-    var.domain_name != "" ? "https://${var.domain_name}/callback" : "https://${aws_cloudfront_distribution.client_ui.domain_name}/callback"
+    var.domain_name != "" ? "https://${local.full_domain}/callback" : "https://${aws_cloudfront_distribution.client_ui.domain_name}/callback"
   ]
 }
 
@@ -385,7 +378,7 @@ resource "aws_cognito_user_pool_client" "q_cli_client" {
 resource "aws_cognito_user" "q_cli_user" {
   user_pool_id = aws_cognito_user_pool.q_cli_pool.id
   username     = var.cognito_username
-  password     = random_password.cognito_user_password.result
+  password     = var.cognito_user_password != "" ? var.cognito_user_password : random_password.cognito_user_password[0].result
 
   attributes = {
     email          = var.cognito_user_email
@@ -516,6 +509,46 @@ resource "aws_cognito_identity_pool_roles_attachment" "q_cli_roles" {
   roles = {
     "authenticated" = aws_iam_role.cognito_authenticated_role.arn
   }
+}
+
+# Attach IoT policy to Cognito Identity Pool
+resource "aws_iot_policy_attachment" "cognito_identity_pool_policy" {
+  policy = aws_iot_policy.cognito_iot_policy.name
+  target = aws_cognito_identity_pool.q_cli_pool.id
+}
+
+# Auto-attach IoT policy to authenticated Cognito identities
+resource "null_resource" "attach_iot_policy_to_identities" {
+  triggers = {
+    identity_pool_id = aws_cognito_identity_pool.q_cli_pool.id
+    policy_name      = aws_iot_policy.cognito_iot_policy.name
+  }
+
+  provisioner "local-exec" {
+    command = <<EOF
+      # Get all identities from the identity pool and attach IoT policy
+      aws cognito-identity list-identities \
+        --identity-pool-id ${aws_cognito_identity_pool.q_cli_pool.id} \
+        --max-results 60 \
+        --region ${var.aws_region} \
+        --query 'Identities[].IdentityId' \
+        --output text | tr '\t' '\n' | while read identity_id; do
+        if [ ! -z "$identity_id" ]; then
+          echo "Attaching IoT policy to identity: $identity_id"
+          aws iot attach-principal-policy \
+            --policy-name ${aws_iot_policy.cognito_iot_policy.name} \
+            --principal "$identity_id" \
+            --region ${var.aws_region} || echo "Policy already attached or error occurred"
+        fi
+      done
+EOF
+  }
+
+  depends_on = [
+    aws_cognito_identity_pool.q_cli_pool,
+    aws_iot_policy.cognito_iot_policy,
+    aws_cognito_user.q_cli_user
+  ]
 }
 
 # Data sources
