@@ -21,7 +21,21 @@ A modern, web-based interface for Amazon Q CLI that provides real-time MQTT comm
 
 ## Screenshot
 
-![Q Developer WebUI screenshot](Screenshot.png "Q Developer WebUI screenshot")
+![Q Developer WebUI screenshot](https://www.terracloud.fr/images/blog/q-web-ui-screenshot.png "Q Developer WebUI screenshot")
+
+## See it in action!
+
+### Login and first session
+
+https://github.com/user-attachments/assets/c1c97ae0-d4f9-4343-8cbf-cc40c09961f8
+
+### Multi-session support
+
+https://github.com/user-attachments/assets/16b91e4b-73cc-4ead-a514-b4ac3e0a9a73
+
+### File browser
+
+https://github.com/user-attachments/assets/5e526827-3f4c-4588-94ac-1ad986abc9b7
 
 ## 🚀 Quick Start
 
